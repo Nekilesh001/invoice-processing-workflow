@@ -200,13 +200,14 @@ class InvoiceAgent:
             logger.warning("Tool execution error: %s", err)
             return err
 
-        # Check if tool accepts session parameter
+        # Create separate args copy for tool invocation so session is not added to JSON serializable args dict
+        call_args = dict(args)
         import inspect
         sig = inspect.signature(fn)
         if "session" in sig.parameters:
-            args["session"] = session
+            call_args["session"] = session
 
-        result = fn(**args)
+        result = fn(**call_args)
         logger.info("Tool Output: %s -> %s", name, result)
         return result
 
