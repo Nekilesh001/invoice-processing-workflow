@@ -51,6 +51,14 @@ if os.path.exists(frontend_dist):
         """Serves the React Web Frontend single page application."""
         return FileResponse(os.path.join(frontend_dist, "index.html"))
 
+    @app.get("/favicon.svg", tags=["Frontend"])
+    def read_favicon():
+        """Serves web app favicon icon."""
+        fav_path = os.path.join(frontend_dist, "favicon.svg")
+        if os.path.exists(fav_path):
+            return FileResponse(fav_path)
+        return FileResponse(os.path.join(frontend_dist, "index.html"))
+
 
 @app.get("/health", tags=["Health"])
 def health_check():
