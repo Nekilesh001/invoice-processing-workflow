@@ -108,9 +108,16 @@ class InvoiceAgent:
         state.messages.append({"role": "system", "content": self.system_prompt})
         state.messages.append({"role": "user", "content": context_str})
 
+        import uuid
+        run_id = str(uuid.uuid4())[:8]
+
+        logger.info("=== AGENT RUN START [ID: %s] ===", run_id)
+        logger.info("Invoice: %s | Vendor: %s | PO: %s | Total: $%s", invoice_number, vendor_name, po_number, total_amount)
+
         # Agent Loop
         while state.iteration_count < state.max_iterations:
             state.iteration_count += 1
+            logger.info("--- [Run %s] Iteration %d/%d ---", run_id, state.iteration_count, state.max_iterations)
 
             # Check if LLM client key is configured; if not, execute local tool sequence
             try:
@@ -186,9 +193,12 @@ class InvoiceAgent:
 
     def _execute_tool(self, name: str, args: Dict[str, Any], session: Optional[Session]) -> Dict[str, Any]:
         """Executes matching Python tool function."""
+        logger.info("Executing Tool: %s(args=%s)", name, args)
         fn = self.tool_functions.get(name)
         if not fn:
-            return {"error": f"Unknown tool: {name}"}
+            err = {"error": f"Unknown tool: {name}"}
+            logger.warning("Tool execution error: %s", err)
+            return err
 
         # Check if tool accepts session parameter
         import inspect
@@ -196,7 +206,9 @@ class InvoiceAgent:
         if "session" in sig.parameters:
             args["session"] = session
 
-        return fn(**args)
+        result = fn(**args)
+        logger.info("Tool Output: %s -> %s", name, result)
+        return result
 
     def _evaluate_tool_observation(self, fn_name: str, tool_result: Dict[str, Any], state: AgentState) -> Optional[AgentDecisionSchema]:
         """Evaluates tool execution output and updates agent state or stopping decision."""
