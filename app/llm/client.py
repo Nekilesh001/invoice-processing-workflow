@@ -24,7 +24,7 @@ class LLMClient:
         model: Optional[str] = None,
         prompt_path: Optional[Path] = None,
     ):
-        self.api_key = api_key or settings.LLM_API_KEY
+        self.api_key = api_key if api_key is not None else settings.LLM_API_KEY
         self.base_url = base_url or settings.LLM_BASE_URL
         self.model = model or settings.LLM_MODEL
         self.prompt_path = prompt_path or (
