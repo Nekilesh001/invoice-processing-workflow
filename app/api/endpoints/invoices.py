@@ -101,8 +101,24 @@ def process_invoice_upload_stream(
 
             # 4. Autonomous Agent Reasoning Loop
             yield f"data: {json.dumps({'event': 'step', 'stage': 'AGENTIC_LOOP', 'message': 'InvoiceAgent Observe-Reason-Act loop starting...'})}\n\n"
+            
+            tool_events = []
+            def handle_tool_call(tool_name, tool_args, tool_out):
+                tool_events.append({
+                    "event": "tool_executed",
+                    "stage": "TOOL_EXECUTION",
+                    "message": f"Executed tool {tool_name}() -> {tool_out.get('message', 'Completed')}",
+                    "tool": tool_name,
+                    "args": tool_args,
+                    "output": tool_out
+                })
+
             agent = InvoiceAgent(llm_client=llm_client)
-            agent_decision = agent.evaluate_and_decide(extracted_invoice, val_res, db_session=db)
+            agent_decision = agent.evaluate_and_decide(extracted_invoice, val_res, db_session=db, on_tool_callback=handle_tool_call)
+
+            # Yield accumulated tool events to streaming response
+            for t_evt in tool_events:
+                yield f"data: {json.dumps(t_evt)}\n\n"
 
             agent_dec_json = {
                 "action": agent_decision.action,
@@ -112,7 +128,7 @@ def process_invoice_upload_stream(
                 "po_verified": agent_decision.po_verified,
                 "executed_tools": agent_decision.executed_tools
             }
-            yield f"data: {json.dumps({'event': 'agent_decision', 'stage': 'AGENT_DECISION', 'message': f'Agent decision: {agent_decision.action}', 'agent_decision': agent_dec_json})}\n\n"
+            yield f"data: {json.dumps({'event': 'agent_decision', 'stage': 'AGENT_DECISION', 'message': f'Agent decision: {agent_decision.action} ({agent_decision.reason})', 'agent_decision': agent_dec_json})}\n\n"
 
             # 5. Database Persistence
             repo = InvoiceRepository()
@@ -140,7 +156,15 @@ def process_invoice_upload_stream(
         except Exception as e:
             yield f"data: {json.dumps({'event': 'error', 'message': str(e)})}\n\n"
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
 
 
 @router.get("", response_model=List[Dict[str, Any]])

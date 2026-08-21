@@ -75,9 +75,11 @@ class InvoiceAgent:
         extracted_invoice: ExtractedInvoice,
         validation_result: ValidationResult,
         db_session: Optional[Session] = None,
+        on_tool_callback: Optional[Any] = None,
     ) -> AgentDecision:
         """
-        Executes bounded agent loop: Observe -> Reason -> Act -> Observe.
+        Executes bounded Observe-Reason-Act loop (max 5 iterations).
+        Dynamically calls tool functions, observes tool outputs, and arrives at AgentDecision.
         """
         state = AgentState(
             extracted_invoice=extracted_invoice,
@@ -85,18 +87,18 @@ class InvoiceAgent:
             max_iterations=self.max_iterations,
         )
 
-        vendor_name = extracted_invoice.vendor.vendor_name if extracted_invoice.vendor else None
-        invoice_number = extracted_invoice.invoice_number
-        po_number = extracted_invoice.po_number
-        total_amount = extracted_invoice.total_amount
+        vendor_name = extracted_invoice.vendor.vendor_name if extracted_invoice.vendor else "Unknown"
+        po_number = extracted_invoice.po_number or "None"
+        invoice_number = extracted_invoice.invoice_number or "Unknown"
+        total_amount = extracted_invoice.total_amount or 0.0
 
         # Build initial prompt messages
         context_str = (
-            f"Extracted Invoice Data:\n"
-            f"- Vendor Name   : {vendor_name or 'N/A'}\n"
-            f"- Invoice Number: {invoice_number or 'N/A'}\n"
-            f"- PO Number     : {po_number or 'NONE'}\n"
-            f"- Total Amount  : ${total_amount if total_amount is not None else 'N/A'}\n"
+            f"INVOICE TO PROCESS:\n"
+            f"- Invoice Number: {invoice_number}\n"
+            f"- Vendor Name   : {vendor_name}\n"
+            f"- PO Number     : {po_number}\n"
+            f"- Total Amount  : ${total_amount}\n"
             f"- Subtotal      : ${extracted_invoice.subtotal}\n"
             f"- Tax Amount    : ${extracted_invoice.tax_amount}\n"
             f"- Validation Status: {'PASSED' if validation_result.is_valid else 'FAILED'}\n"
@@ -137,8 +139,18 @@ class InvoiceAgent:
                     fn_name = tool_call.function.name
                     fn_args = json.loads(tool_call.function.arguments) if tool_call.function.arguments else {}
 
-                    tool_result = self._execute_tool(fn_name, fn_args, db_session)
-                    state.executed_tools.append({"tool": fn_name, "args": fn_args, "output": tool_result})
+                    tool_result = self._execute_tool(fn_name, fn_args, db_session, on_tool_callback=on_tool_callback)
+                    state.executed_tools.append({
+                        "tool": fn_name,
+                        "args": fn_args,
+                        "output": tool_result
+                    })
+
+                    # Evaluate tool observations
+                    decision = self._evaluate_tool_observation(fn_name, tool_result, state)
+                    if decision:
+                        state.final_decision = decision
+                        break
 
                     # Append assistant tool call and tool response to message history
                     state.messages.append({
@@ -158,18 +170,12 @@ class InvoiceAgent:
                         "content": json.dumps(tool_result)
                     })
 
-                    # Evaluate tool observations
-                    stop_decision = self._evaluate_tool_observation(fn_name, tool_result, state)
-                    if stop_decision:
-                        state.final_decision = stop_decision
-                        break
-
                 if state.final_decision:
                     break
 
             # Path B: LLM returned content (or local offline agentic tool reasoning fallback)
             else:
-                decision = self._execute_fallback_agentic_loop(state, db_session)
+                decision = self._execute_fallback_agentic_loop(state, db_session, on_tool_callback=on_tool_callback)
                 state.final_decision = decision
                 break
 
@@ -177,9 +183,12 @@ class InvoiceAgent:
         if not state.final_decision:
             state.final_decision = AgentDecisionSchema(
                 decision="HUMAN_REVIEW",
-                reason="MAX_ITERATIONS_EXCEEDED: Agent reached iteration limit without conclusive decision.",
-                requires_human_review=True
+                reason="ITERATION_LIMIT_EXCEEDED: Agent exceeded max reasoning steps without reaching conclusion.",
+                requires_human_review=True,
+                confidence_score=0.5
             )
+
+        logger.info("=== AGENT RUN END [ID: %s] Decision: %s ===", run_id, state.final_decision.decision)
 
         return AgentDecision(
             action=state.final_decision.decision,
@@ -191,7 +200,7 @@ class InvoiceAgent:
             confidence_score=state.final_decision.confidence_score
         )
 
-    def _execute_tool(self, name: str, args: Dict[str, Any], session: Optional[Session]) -> Dict[str, Any]:
+    def _execute_tool(self, name: str, args: Dict[str, Any], session: Optional[Session], on_tool_callback: Optional[Any] = None) -> Dict[str, Any]:
         """Executes matching Python tool function."""
         logger.info("Executing Tool: %s(args=%s)", name, args)
         fn = self.tool_functions.get(name)
@@ -209,6 +218,13 @@ class InvoiceAgent:
 
         result = fn(**call_args)
         logger.info("Tool Output: %s -> %s", name, result)
+
+        if on_tool_callback:
+            try:
+                on_tool_callback(name, args, result)
+            except Exception as cb_err:
+                logger.warning("on_tool_callback exception: %s", cb_err)
+
         return result
 
     def _evaluate_tool_observation(self, fn_name: str, tool_result: Dict[str, Any], state: AgentState) -> Optional[AgentDecisionSchema]:
@@ -264,7 +280,7 @@ class InvoiceAgent:
 
         return None
 
-    def _execute_fallback_agentic_loop(self, state: AgentState, db_session: Optional[Session]) -> AgentDecisionSchema:
+    def _execute_fallback_agentic_loop(self, state: AgentState, db_session: Optional[Session], on_tool_callback: Optional[Any] = None) -> AgentDecisionSchema:
         """
         Dynamic agentic observation loop for offline/unconfigured API key environments:
         1. Dynamically selects tools based on invoice evidence.
@@ -275,27 +291,30 @@ class InvoiceAgent:
         inv = state.extracted_invoice
 
         # Tool 1: Duplicate check
-        dup_out = self._execute_tool("check_duplicate_invoice", {
+        dup_args = {
             "vendor_name": inv.vendor.vendor_name if inv.vendor else None,
             "invoice_number": inv.invoice_number
-        }, db_session)
-        state.executed_tools.append({"tool": "check_duplicate_invoice", "output": dup_out})
+        }
+        dup_out = self._execute_tool("check_duplicate_invoice", dup_args, db_session, on_tool_callback=on_tool_callback)
+        state.executed_tools.append({"tool": "check_duplicate_invoice", "args": dup_args, "output": dup_out})
         dec = self._evaluate_tool_observation("check_duplicate_invoice", dup_out, state)
         if dec:
             return dec
 
         # Tool 2: Vendor lookup
         vendor_name = inv.vendor.vendor_name if inv.vendor else None
-        v_out = self._execute_tool("lookup_vendor", {"vendor_name": vendor_name}, db_session)
-        state.executed_tools.append({"tool": "lookup_vendor", "output": v_out})
+        v_args = {"vendor_name": vendor_name}
+        v_out = self._execute_tool("lookup_vendor", v_args, db_session, on_tool_callback=on_tool_callback)
+        state.executed_tools.append({"tool": "lookup_vendor", "args": v_args, "output": v_out})
         dec = self._evaluate_tool_observation("lookup_vendor", v_out, state)
         if dec:
             return dec
 
         # Tool 3: PO lookup ONLY if po_number exists (Dynamic tool selection evidence check)
         if inv.po_number:
-            po_out = self._execute_tool("lookup_purchase_order", {"po_number": inv.po_number}, db_session)
-            state.executed_tools.append({"tool": "lookup_purchase_order", "output": po_out})
+            po_args = {"po_number": inv.po_number}
+            po_out = self._execute_tool("lookup_purchase_order", po_args, db_session, on_tool_callback=on_tool_callback)
+            state.executed_tools.append({"tool": "lookup_purchase_order", "args": po_args, "output": po_out})
             dec = self._evaluate_tool_observation("lookup_purchase_order", po_out, state)
             if dec:
                 return dec
