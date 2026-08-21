@@ -25,7 +25,7 @@ Inspired by the **Agentic AI course from DeepLearning.AI by Andrew Ng**, this pl
 
 ## 📐 Architecture & Workflow Evolution
 
-### 1. Initial Deterministic Workflow (Andrew Ng Baseline)
+### 1. Initial Deterministic Workflow 
 
 ```mermaid
 flowchart TD
