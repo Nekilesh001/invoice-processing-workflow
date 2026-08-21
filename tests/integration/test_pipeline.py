@@ -120,3 +120,40 @@ def test_pipeline_duplicate_detection(mock_llm_extract, sqlite_session):
     # Second run with same vendor and invoice_number -> DUPLICATE_SUSPECTED
     res2 = runner.process_file(pdf_path, db_session=sqlite_session)
     assert res2.status == ProcessingStatus.DUPLICATE_SUSPECTED
+
+
+@patch("app.llm.client.LLMClient.extract_invoice_json")
+def test_pipeline_agent_invocation_integration(mock_llm_extract, sqlite_session):
+    """
+    Integration test proving InvoiceAgent is genuinely invoked during active pipeline execution.
+    """
+    mock_llm_extract.return_value = {
+        "invoice_number": "INV-AGENT-VERIFY-001",
+        "invoice_date": "2026-08-15",
+        "due_date": "2026-09-15",
+        "currency": "USD",
+        "po_number": "PO-8842",
+        "vendor": {"vendor_name": "Acme Cloud Solutions Inc."},
+        "subtotal": 3000.00,
+        "tax_amount": 300.00,
+        "total_amount": 3300.00
+    }
+
+    mock_agent = MagicMock()
+    from app.agents.invoice_agent import AgentDecision
+    mock_agent.evaluate_and_decide.return_value = AgentDecision(
+        action="AUTO_PROCESS",
+        reason="Mocked Agent Auto Process decision",
+        vendor_verified=True,
+        po_verified=True
+    )
+
+    runner = InvoicePipelineRunner(agent=mock_agent)
+    pdf_path = settings.BASE_DIR / "data" / "sample_invoices" / "invoice_001_normal.pdf"
+
+    res = runner.process_file(pdf_path, db_session=sqlite_session)
+
+    # Assert InvoiceAgent evaluate_and_decide was called during pipeline execution
+    assert mock_agent.evaluate_and_decide.called is True
+    assert res.status == ProcessingStatus.SUCCESS
+
