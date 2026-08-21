@@ -59,6 +59,11 @@ if os.path.exists(frontend_dist):
             return FileResponse(fav_path)
         return FileResponse(os.path.join(frontend_dist, "index.html"))
 
+    @app.get("/.well-known/appspecific/com.chrome.devtools.json", tags=["Frontend"])
+    def devtools_json():
+        """Suppresses Chrome DevTools discovery 404 log warning."""
+        return {}
+
 
 @app.get("/health", tags=["Health"])
 def health_check():
