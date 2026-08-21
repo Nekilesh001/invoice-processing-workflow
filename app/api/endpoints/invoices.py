@@ -40,6 +40,109 @@ def process_invoice_upload(
         )
 
 
+@router.post("/process-stream")
+def process_invoice_upload_stream(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Upload an invoice file with real-time SSE event streaming:
+    Emits raw extracted text immediately, LLM ideation steps, tool executions, and final decision.
+    """
+    if not file.filename.lower().endswith((".pdf", ".png", ".jpg", ".jpeg", ".tiff")):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unsupported file format. Please upload a PDF or image file."
+        )
+
+    from fastapi.responses import StreamingResponse
+    from app.extraction.extractor import DocumentExtractor
+    from app.llm.client import LLMClient
+    from app.validation.validator import InvoiceValidator
+    from app.agents.invoice_agent import InvoiceAgent
+    from app.schemas.processing import ProcessingStatus
+
+    file_content = file.file.read()
+    file_name = file.filename
+
+    def event_generator():
+        try:
+            # 1. Text Extraction Stage
+            yield f"data: {json.dumps({'event': 'step', 'stage': 'EXTRACTION', 'message': 'Extracting document text (PyMuPDF / Tesseract OCR)...'})}\n\n"
+            extractor = DocumentExtractor()
+            ext_res = extractor.extract(file_content, filename=file_name)
+            
+            # Instantly emit raw text to frontend
+            yield f"data: {json.dumps({'event': 'text_extracted', 'stage': 'TEXT_EXTRACTED', 'message': f'Extracted {len(ext_res.raw_text)} chars via {ext_res.extraction_method}.', 'raw_text': ext_res.raw_text, 'method': ext_res.extraction_method})}\n\n"
+
+            # 2. LLM Ideation & Structured Extraction Stage
+            yield f"data: {json.dumps({'event': 'step', 'stage': 'LLM_PARSING', 'message': 'LLM GLM-4.7-Flash reasoning & parsing JSON schema...'})}\n\n"
+            llm_client = LLMClient()
+            invoice_dict = llm_client.extract_invoice_json(ext_res.raw_text)
+            
+            from app.schemas.invoice import ExtractedInvoice
+            extracted_invoice = ExtractedInvoice(**invoice_dict)
+
+            inv_num = extracted_invoice.invoice_number or "N/A"
+            v_name = extracted_invoice.vendor.vendor_name if extracted_invoice.vendor else "Unknown"
+            yield f"data: {json.dumps({'event': 'json_parsed', 'stage': 'JSON_PARSED', 'message': f'LLM extracted invoice #{inv_num} for vendor {v_name}.', 'invoice': json.loads(extracted_invoice.model_dump_json())})}\n\n"
+
+            # 3. Deterministic Business Math Validation
+            yield f"data: {json.dumps({'event': 'step', 'stage': 'VALIDATION', 'message': 'Executing 7 deterministic business math & date rules...'})}\n\n"
+            validator = InvoiceValidator()
+            val_res = validator.validate(extracted_invoice)
+            
+            val_json = {
+                "is_valid": val_res.is_valid,
+                "errors": [{"rule_name": e.rule_name, "message": e.message} for e in val_res.errors],
+                "warnings": [{"rule_name": w.rule_name, "message": w.message} for w in val_res.warnings]
+            }
+            yield f"data: {json.dumps({'event': 'validation_complete', 'stage': 'VALIDATION_DONE', 'message': 'Validation complete.', 'validation': val_json})}\n\n"
+
+            # 4. Autonomous Agent Reasoning Loop
+            yield f"data: {json.dumps({'event': 'step', 'stage': 'AGENTIC_LOOP', 'message': 'InvoiceAgent Observe-Reason-Act loop starting...'})}\n\n"
+            agent = InvoiceAgent(llm_client=llm_client)
+            agent_decision = agent.evaluate_and_decide(extracted_invoice, val_res, db_session=db)
+
+            agent_dec_json = {
+                "action": agent_decision.action,
+                "reason": agent_decision.reason,
+                "confidence_score": agent_decision.confidence_score,
+                "vendor_verified": agent_decision.vendor_verified,
+                "po_verified": agent_decision.po_verified,
+                "executed_tools": agent_decision.executed_tools
+            }
+            yield f"data: {json.dumps({'event': 'agent_decision', 'stage': 'AGENT_DECISION', 'message': f'Agent decision: {agent_decision.action}', 'agent_decision': agent_dec_json})}\n\n"
+
+            # 5. Database Persistence
+            repo = InvoiceRepository()
+            db_invoice = repo.save_invoice(
+                session=db,
+                extracted_invoice=extracted_invoice,
+                validation_result=val_res,
+                source_filename=file_name
+            )
+
+            status_enum = ProcessingStatus.SUCCESS if agent_decision.action == "AUTO_PROCESS" else ProcessingStatus.NEEDS_REVIEW
+            
+            final_result = {
+                "document_name": file_name,
+                "status": status_enum,
+                "extraction_method": ext_res.extraction_method,
+                "extracted_invoice": json.loads(extracted_invoice.model_dump_json()),
+                "validation_result": val_json,
+                "agent_decision": agent_dec_json,
+                "database_invoice_id": db_invoice.id if db_invoice else None
+            }
+
+            yield f"data: {json.dumps({'event': 'complete', 'stage': 'DONE', 'result': final_result})}\n\n"
+
+        except Exception as e:
+            yield f"data: {json.dumps({'event': 'error', 'message': str(e)})}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
 @router.get("", response_model=List[Dict[str, Any]])
 def list_invoices(
     status_filter: Optional[str] = Query(None, alias="status", description="Filter by status: PENDING, APPROVED, REJECTED, NEEDS_REVIEW"),

@@ -1,11 +1,16 @@
 import React, { useState, useRef } from 'react';
-import { Upload, FileUp, Sparkles, CheckCircle, AlertTriangle, ArrowRight, Eye, RefreshCw } from 'lucide-react';
+import { Upload, FileUp, Sparkles, CheckCircle, AlertTriangle, RefreshCw, FileText, Cpu, Terminal, ShieldCheck } from 'lucide-react';
 
 export default function InvoiceUpload({ onProcessingComplete }) {
   const [dragActive, setDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  
+  // Real-time streaming state
   const [currentStep, setCurrentStep] = useState('');
+  const [rawText, setRawText] = useState('');
+  const [extractionMethod, setExtractionMethod] = useState('');
+  const [streamEvents, setStreamEvents] = useState([]);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const fileInputRef = useRef(null);
@@ -43,37 +48,55 @@ export default function InvoiceUpload({ onProcessingComplete }) {
     setSelectedFile(file);
     setError(null);
     setResult(null);
+    setRawText('');
+    setStreamEvents([]);
   };
 
-  const processInvoice = async () => {
+  const processInvoiceStream = async () => {
     if (!selectedFile) return;
 
     setIsProcessing(true);
     setError(null);
-    setCurrentStep('Extracting PDF text (PyMuPDF / Tesseract OCR fallback)...');
+    setResult(null);
+    setRawText('');
+    setStreamEvents([]);
+    setCurrentStep('Initializing document processing stream...');
 
     const formData = new FormData();
     formData.append('file', selectedFile);
 
     try {
-      setTimeout(() => setCurrentStep('LLM GLM-4.7-Flash JSON Structured Parsing...'), 600);
-      setTimeout(() => setCurrentStep('Executing 7 Deterministic Business Validation Checks...'), 1200);
-      setTimeout(() => setCurrentStep('Autonomous InvoiceAgent Reasoning & PO Matching...'), 1800);
-
-      const response = await fetch('/api/v1/invoices/process', {
+      const response = await fetch('/api/v1/invoices/process-stream', {
         method: 'POST',
         body: formData,
       });
 
       if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.detail || 'Failed to process invoice document');
+        throw new Error('Failed to start streaming response');
       }
 
-      const data = await response.json();
-      setResult(data);
-      if (onProcessingComplete) {
-        onProcessingComplete(data);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() || ''; // Keep incomplete trailing chunk
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.replace('data: ', '').trim());
+              handleStreamEvent(data);
+            } catch (e) {
+              console.error('Failed to parse SSE event', e);
+            }
+          }
+        }
       }
     } catch (err) {
       setError(err.message);
@@ -82,9 +105,32 @@ export default function InvoiceUpload({ onProcessingComplete }) {
     }
   };
 
+  const handleStreamEvent = (data) => {
+    if (data.message) {
+      setCurrentStep(data.message);
+      setStreamEvents(prev => [...prev, { time: new Date().toLocaleTimeString(), message: data.message, stage: data.stage }]);
+    }
+
+    if (data.event === 'text_extracted') {
+      setRawText(data.raw_text);
+      setExtractionMethod(data.method);
+    }
+
+    if (data.event === 'complete' && data.result) {
+      setResult(data.result);
+      if (onProcessingComplete) {
+        onProcessingComplete(data.result);
+      }
+    }
+
+    if (data.event === 'error') {
+      setError(data.message);
+    }
+  };
+
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.1fr', gap: '24px' }}>
-      {/* Left: Upload Card */}
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.15fr', gap: '24px' }}>
+      {/* Left Column: Upload Card */}
       <div className="glass-panel" style={{ padding: '32px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
           <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(99, 102, 241, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -135,7 +181,7 @@ export default function InvoiceUpload({ onProcessingComplete }) {
             <div style={{ fontSize: '0.85rem', fontWeight: 500 }}>
               📄 {selectedFile.name} <span style={{ color: '#64748b', fontSize: '0.75rem' }}>({(selectedFile.size / 1024).toFixed(1)} KB)</span>
             </div>
-            <button className="btn-secondary" style={{ padding: '4px 10px', fontSize: '0.75rem' }} onClick={(e) => { e.stopPropagation(); setSelectedFile(null); setResult(null); }}>
+            <button className="btn-secondary" style={{ padding: '4px 10px', fontSize: '0.75rem' }} onClick={(e) => { e.stopPropagation(); setSelectedFile(null); setResult(null); setRawText(''); setStreamEvents([]); }}>
               Change
             </button>
           </div>
@@ -150,16 +196,16 @@ export default function InvoiceUpload({ onProcessingComplete }) {
         <button
           className="btn-primary"
           style={{ width: '100%', justifyContent: 'center', padding: '14px', fontSize: '0.95rem' }}
-          onClick={processInvoice}
+          onClick={processInvoiceStream}
           disabled={!selectedFile || isProcessing}
         >
           {isProcessing ? (
             <>
-              <RefreshCw size={18} className="animate-spin" style={{ animation: 'spin 1s linear infinite' }} /> Processing Pipeline...
+              <RefreshCw size={18} className="animate-spin" style={{ animation: 'spin 1s linear infinite' }} /> Streaming Real-Time Pipeline...
             </>
           ) : (
             <>
-              <Sparkles size={18} /> Run Agentic Pipeline
+              <Sparkles size={18} /> Run Streaming Agentic Pipeline
             </>
           )}
         </button>
@@ -172,87 +218,111 @@ export default function InvoiceUpload({ onProcessingComplete }) {
         )}
       </div>
 
-      {/* Right: Processing Results Output */}
-      <div className="glass-panel" style={{ padding: '32px' }}>
-        <h2 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Sparkles size={20} color="#06b6d4" /> Pipeline Execution Results
-        </h2>
+      {/* Right Column: Live Streaming Concept View */}
+      <div className="glass-panel" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <h2 style={{ fontSize: '1.2rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Sparkles size={20} color="#06b6d4" /> Pipeline Execution & Ideation Stream
+          </h2>
 
-        {!result && !isProcessing && (
-          <div style={{ height: '300px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#64748b', textAlign: 'center' }}>
-            <FileUp size={48} style={{ opacity: 0.3, marginBottom: '16px' }} />
-            <p style={{ fontSize: '0.9rem' }}>Upload an invoice to view live extraction & agent reasoning trace</p>
+          {extractionMethod && (
+            <span className="badge badge-info" style={{ fontSize: '0.75rem' }}>
+              {extractionMethod === 'native_pdf' ? '⚡ PyMuPDF Native' : '🔍 Tesseract OCR'}
+            </span>
+          )}
+        </div>
+
+        {/* 1. Real-Time Raw Text Stream Terminal */}
+        <div style={{
+          background: 'rgba(0, 0, 0, 0.55)',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          borderRadius: '12px',
+          padding: '16px',
+          fontFamily: 'JetBrains Mono, monospace'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', color: '#94a3b8', fontSize: '0.75rem' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Terminal size={14} color="#38bdf8" /> INSTANT EXTRACTED RAW TEXT STREAM
+            </span>
+            {rawText && <span style={{ color: '#34d399' }}>{rawText.length} chars extracted</span>}
           </div>
-        )}
 
-        {result && (
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', background: 'rgba(255, 255, 255, 0.03)', padding: '16px', borderRadius: '12px' }}>
-              <div>
-                <span className="font-mono" style={{ fontSize: '0.75rem', color: '#94a3b8' }}>STATUS</span>
-                <div style={{ marginTop: '4px' }}>
-                  <span className={result.status === 'SUCCESS' ? 'badge badge-success' : result.status === 'DUPLICATE_SUSPECTED' ? 'badge badge-warning' : 'badge badge-danger'} style={{ fontSize: '0.85rem' }}>
-                    {result.status}
-                  </span>
-                </div>
+          <div style={{
+            maxHeight: '160px',
+            overflowY: 'auto',
+            fontSize: '0.78rem',
+            color: '#38bdf8',
+            whiteSpace: 'pre-wrap',
+            lineHeight: '1.5'
+          }}>
+            {rawText ? rawText : (
+              <span style={{ color: '#64748b', italic: true }}>
+                {isProcessing ? '> Waiting for document text extraction...' : '> Upload an invoice to stream raw document text immediately.'}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* 2. Real-Time LLM Ideation & Tool Event Stream Log */}
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.02)',
+          border: '1px solid rgba(255, 255, 255, 0.06)',
+          borderRadius: '12px',
+          padding: '16px'
+        }}>
+          <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Cpu size={14} color="#818cf8" /> LLM IDEATION & TOOL REASONING STREAM
+          </div>
+
+          <div style={{ maxHeight: '160px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {streamEvents.length === 0 && !isProcessing && (
+              <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                No events streamed yet. Click "Run Streaming Agentic Pipeline" to start.
+              </span>
+            )}
+
+            {streamEvents.map((evt, idx) => (
+              <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontSize: '0.8rem' }}>
+                <span className="font-mono" style={{ color: '#64748b', fontSize: '0.7rem', marginTop: '2px' }}>{evt.time}</span>
+                <span style={{
+                  color: evt.stage === 'AGENT_DECISION' ? '#34d399' : evt.stage === 'TEXT_EXTRACTED' ? '#38bdf8' : '#e2e8f0',
+                  fontWeight: evt.stage === 'AGENT_DECISION' ? 600 : 400
+                }}>
+                  {evt.message}
+                </span>
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <span className="font-mono" style={{ fontSize: '0.75rem', color: '#94a3b8' }}>EXTRACTION</span>
-                <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#38bdf8', marginTop: '4px' }}>
-                  {result.extraction_method === 'native_pdf' ? '⚡ Native PDF' : '🔍 Tesseract OCR'}
+            ))}
+          </div>
+        </div>
+
+        {/* 3. Final Result Badge Card */}
+        {result && (
+          <div style={{
+            background: result.status === 'SUCCESS' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(244, 63, 94, 0.1)',
+            border: `1px solid ${result.status === 'SUCCESS' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(244, 63, 94, 0.3)'}`,
+            padding: '16px',
+            borderRadius: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <ShieldCheck size={20} color={result.status === 'SUCCESS' ? '#34d399' : '#f87171'} />
+              <div>
+                <div style={{ fontSize: '0.85rem', fontWeight: 700, color: result.status === 'SUCCESS' ? '#34d399' : '#f87171' }}>
+                  PIPELINE COMPLETE: {result.status}
+                </div>
+                <div style={{ fontSize: '0.75rem', color: '#cbd5e1' }}>
+                  Invoice #{result.extracted_invoice?.invoice_number || 'N/A'} for {result.extracted_invoice?.vendor?.vendor_name || 'N/A'} (${result.extracted_invoice?.total_amount?.toFixed(2)})
                 </div>
               </div>
             </div>
 
-            {result.extracted_invoice && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
-                <div style={{ background: 'rgba(255, 255, 255, 0.02)', padding: '14px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                  <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>VENDOR</div>
-                  <div style={{ fontSize: '0.95rem', fontWeight: 600, marginTop: '4px' }}>
-                    {result.extracted_invoice.vendor?.vendor_name || 'N/A'}
-                  </div>
-                </div>
-                <div style={{ background: 'rgba(255, 255, 255, 0.02)', padding: '14px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                  <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>INVOICE NUMBER</div>
-                  <div style={{ fontSize: '0.95rem', fontWeight: 600, marginTop: '4px' }} className="font-mono">
-                    {result.extracted_invoice.invoice_number || 'N/A'}
-                  </div>
-                </div>
-                <div style={{ background: 'rgba(255, 255, 255, 0.02)', padding: '14px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                  <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>PO NUMBER</div>
-                  <div style={{ fontSize: '0.95rem', fontWeight: 600, marginTop: '4px', color: result.extracted_invoice.po_number ? '#34d399' : '#94a3b8' }} className="font-mono">
-                    {result.extracted_invoice.po_number || 'NONE'}
-                  </div>
-                </div>
-                <div style={{ background: 'rgba(255, 255, 255, 0.02)', padding: '14px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                  <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>TOTAL AMOUNT</div>
-                  <div style={{ fontSize: '1.1rem', fontWeight: 700, marginTop: '4px', color: '#818cf8' }}>
-                    ${result.extracted_invoice.total_amount?.toFixed(2)}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {result.validation_result && (
-              <div style={{ background: 'rgba(255, 255, 255, 0.02)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                <div style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '8px', color: '#94a3b8' }}>
-                  DETERMINISTIC VALIDATION CHECKS
-                </div>
-                {result.validation_result.is_valid ? (
-                  <div className="badge badge-success" style={{ gap: '6px' }}>
-                    <CheckCircle size={14} /> All 7 Business Math & Date Checks Passed
-                  </div>
-                ) : (
-                  <div style={{ color: '#f87171', fontSize: '0.8rem' }}>
-                    {result.validation_result.errors?.map((err, i) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
-                        <AlertTriangle size={14} /> {err.message}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+            <button className="btn-secondary" style={{ padding: '6px 12px', fontSize: '0.75rem' }} onClick={() => {
+              if (onProcessingComplete) onProcessingComplete(result);
+            }}>
+              View Full Agent Trace →
+            </button>
           </div>
         )}
       </div>
