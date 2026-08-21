@@ -1,9 +1,11 @@
 import os
+import io
 from pathlib import Path
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from PIL import Image, ImageDraw, ImageFont
 
 
 def create_invoice_pdf(output_path: Path, data: dict):
@@ -164,6 +166,39 @@ def create_invoice_pdf(output_path: Path, data: dict):
     doc.build(elements)
 
 
+def create_scanned_invoice_pdf(output_path: Path):
+    """
+    Creates a rasterized (scanned image) PDF with no native text stream to force Tesseract OCR execution.
+    """
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    # Create white canvas
+    img = Image.new("RGB", (1650, 2150), color="white")
+    draw = ImageDraw.Draw(img)
+
+    lines = [
+        "SCANNED INVOICE",
+        "Vendor: Apex Industrial Supplies",
+        "Address: 700 Industrial Pkwy, Cleveland, OH 44101",
+        "Invoice #: INV-2026-006",
+        "Invoice Date: 2026-08-12",
+        "Due Date: 2026-09-12",
+        "Billed To: Horizon Logistics",
+        "Item: Heavy Duty Steel Fasteners Qty: 50 Unit Price: $20.00 Total: $1000.00",
+        "Subtotal: $1000.00",
+        "Tax: $80.00",
+        "Total Amount: $1080.00",
+        "Amount Due: $1080.00"
+    ]
+
+    y = 100
+    for line in lines:
+        draw.text((100, y), line, fill="black")
+        y += 80
+
+    # Save as image-only PDF
+    img.save(output_path, "PDF", resolution=300.0)
+
+
 def generate_all_samples():
     base_dir = Path(__file__).resolve().parent.parent
     sample_dir = base_dir / "data" / "sample_invoices"
@@ -239,7 +274,7 @@ def generate_all_samples():
     }
     create_invoice_pdf(sample_dir / "invoice_003_missing_vendor.pdf", invoice_003)
 
-    # 4. Invalid Total Calculation (Subtotal $1000 + Tax $100 = $1100, but Total claims $1500)
+    # 4. Invalid Total Calculation
     invoice_004 = {
         "title": "INVOICE",
         "vendor_name": "Delta Tech Services",
@@ -254,12 +289,15 @@ def generate_all_samples():
         ],
         "subtotal": 1000.00,
         "tax_amount": 100.00,
-        "total_amount": 1500.00,  # Intentional arithmetic mismatch!
+        "total_amount": 1500.00,
         "amount_due": 1500.00
     }
     create_invoice_pdf(sample_dir / "invoice_004_invalid_total.pdf", invoice_004)
 
-    print(f"Generated 4 synthetic PDF invoices in {sample_dir}")
+    # 6. Scanned Image PDF (Forces OCR Fallback)
+    create_scanned_invoice_pdf(sample_dir / "invoice_006_scanned_invoice.pdf")
+
+    print(f"Generated synthetic PDF invoices (including scanned OCR sample) in {sample_dir}")
 
 
 if __name__ == "__main__":
