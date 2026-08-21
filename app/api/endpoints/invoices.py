@@ -70,7 +70,7 @@ def process_invoice_upload_stream(
             # 1. Text Extraction Stage
             yield f"data: {json.dumps({'event': 'step', 'stage': 'EXTRACTION', 'message': 'Extracting document text (PyMuPDF / Tesseract OCR)...'})}\n\n"
             extractor = DocumentExtractor()
-            ext_res = extractor.extract(file_content, filename=file_name)
+            ext_res = extractor.extract(file_content, file_name=file_name)
             
             # Instantly emit raw text to frontend
             yield f"data: {json.dumps({'event': 'text_extracted', 'stage': 'TEXT_EXTRACTED', 'message': f'Extracted {len(ext_res.raw_text)} chars via {ext_res.extraction_method}.', 'raw_text': ext_res.raw_text, 'method': ext_res.extraction_method})}\n\n"
