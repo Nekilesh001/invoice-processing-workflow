@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Optional, Union
 from sqlalchemy.orm import Session
 
+from app.agents.invoice_agent import InvoiceAgent, AgentDecision
 from app.database.connection import get_db, init_db
 from app.database.repositories.invoice_repository import InvoiceRepository
 from app.extraction.extractor import DocumentExtractor
@@ -13,7 +14,7 @@ from app.validation.validator import InvoiceValidator
 class InvoicePipelineRunner:
     """
     End-to-End Invoice Processing Workflow Orchestrator:
-    Document -> Text (Native/OCR) -> LLM -> Pydantic Schema -> Validation -> SQL Database
+    Document -> Text (Native/OCR) -> LLM -> Pydantic Schema -> Validation -> InvoiceAgent -> SQL Database
     """
 
     def __init__(
@@ -22,11 +23,13 @@ class InvoicePipelineRunner:
         llm_client: Optional[LLMClient] = None,
         validator: Optional[InvoiceValidator] = None,
         repository: Optional[InvoiceRepository] = None,
+        agent: Optional[InvoiceAgent] = None,
     ):
         self.extractor = extractor or DocumentExtractor()
         self.llm_client = llm_client or LLMClient()
         self.validator = validator or InvoiceValidator()
         self.repository = repository or InvoiceRepository()
+        self.agent = agent or InvoiceAgent(llm_client=self.llm_client)
 
     def process_file(
         self, file_input: Union[str, Path, bytes], file_name: str = "document.pdf", db_session: Optional[Session] = None
@@ -58,18 +61,18 @@ class InvoicePipelineRunner:
             # Step 4: Business Rules Validation
             validation_result = self.validator.validate(extracted_invoice)
 
-            # Step 5: Duplicate Check & Database Persistence
+            # Step 5: Autonomous Agentic Decision Engine (InvoiceAgent)
             def _persist(session: Session) -> ProcessingResult:
-                # Check for duplicate vendor + invoice number
-                vendor_name = extracted_invoice.vendor.vendor_name if extracted_invoice.vendor else None
-                is_duplicate = self.repository.check_duplicate(
-                    session, vendor_name=vendor_name, invoice_number=extracted_invoice.invoice_number
+                agent_decision = self.agent.evaluate_and_decide(
+                    extracted_invoice=extracted_invoice,
+                    validation_result=validation_result,
+                    db_session=session
                 )
 
-                if is_duplicate:
-                    status = ProcessingStatus.DUPLICATE_SUSPECTED
-                elif validation_result.is_valid:
+                if agent_decision.action == "AUTO_PROCESS":
                     status = ProcessingStatus.SUCCESS
+                elif "DUPLICATE_SUSPECTED" in agent_decision.reason:
+                    status = ProcessingStatus.DUPLICATE_SUSPECTED
                 else:
                     status = ProcessingStatus.NEEDS_REVIEW
 
@@ -80,6 +83,10 @@ class InvoicePipelineRunner:
                     validation_result=validation_result,
                     source_filename=resolved_filename
                 )
+
+                # Update invoice status based on agent decision
+                db_invoice.status = "APPROVED" if agent_decision.action == "AUTO_PROCESS" else "NEEDS_REVIEW"
+                session.flush()
 
                 review_id = db_invoice.review_tasks[0].id if db_invoice.review_tasks else None
 

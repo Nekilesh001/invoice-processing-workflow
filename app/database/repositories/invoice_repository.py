@@ -107,6 +107,28 @@ class InvoiceRepository:
         if validation_result:
             status = "APPROVED" if validation_result.is_valid else "NEEDS_REVIEW"
 
+        # Check if duplicate invoice already exists in database
+        if vendor_inst and extracted_invoice.invoice_number:
+            existing = session.query(InvoiceModel).filter(
+                InvoiceModel.vendor_id == vendor_inst.id,
+                InvoiceModel.invoice_number == extracted_invoice.invoice_number.strip()
+            ).first()
+            if existing:
+                existing.status = "NEEDS_REVIEW"
+                review_task = session.query(ReviewTaskModel).filter(
+                    ReviewTaskModel.invoice_id == existing.id,
+                    ReviewTaskModel.status == "PENDING"
+                ).first()
+                if not review_task:
+                    rev = ReviewTaskModel(
+                        invoice_id=existing.id,
+                        reason="DUPLICATE_SUSPECTED",
+                        status="PENDING"
+                    )
+                    session.add(rev)
+                session.flush()
+                return existing
+
         invoice_rec = InvoiceModel(
             invoice_number=extracted_invoice.invoice_number,
             vendor_id=vendor_inst.id if vendor_inst else None,
@@ -126,7 +148,18 @@ class InvoiceRepository:
             source_filename=source_filename
         )
         session.add(invoice_rec)
-        session.flush()
+        try:
+            session.flush()
+        except Exception:
+            session.rollback()
+            if vendor_inst and extracted_invoice.invoice_number:
+                dup = session.query(InvoiceModel).filter(
+                    InvoiceModel.vendor_id == vendor_inst.id,
+                    InvoiceModel.invoice_number == extracted_invoice.invoice_number.strip()
+                ).first()
+                if dup:
+                    return dup
+            raise
 
         # Insert Line Items
         for item in extracted_invoice.line_items:

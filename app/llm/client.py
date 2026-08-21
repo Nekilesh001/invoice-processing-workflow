@@ -1,7 +1,7 @@
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import openai
 from openai import OpenAI, APIError, AuthenticationError
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 class LLMClient:
     """
-    OpenAI-compatible client wrapper for LLM invoice extraction.
+    OpenAI-compatible client wrapper for LLM invoice extraction and agentic tool calling.
     Compatible with GLM-4, OpenAI GPT, and any OpenAI API-compatible provider.
     """
 
@@ -77,7 +77,6 @@ class LLMClient:
             if not raw_content:
                 raise ValueError("LLM returned empty response content.")
 
-            # Clean markdown JSON block formatting if present
             cleaned_content = raw_content.strip()
             if cleaned_content.startswith("```json"):
                 cleaned_content = cleaned_content[7:]
@@ -98,3 +97,29 @@ class LLMClient:
         except json.JSONDecodeError as e:
             logger.error("Failed to parse LLM JSON response: %s", str(e))
             raise ValueError(f"LLM output is not valid JSON: {str(e)}") from e
+
+    def chat_completion_with_tools(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: List[Dict[str, Any]],
+    ) -> Any:
+        """
+        Executes OpenAI chat completion call supplying function/tool specs.
+        Returns response message choice object (which may contain tool_calls or content).
+        """
+        client = self._get_client()
+        try:
+            response = client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                tools=tools,
+                tool_choice="auto",
+                temperature=0.0,
+            )
+            return response.choices[0].message
+        except AuthenticationError as e:
+            logger.error("LLM Tool Authentication failed: %s", str(e))
+            raise RuntimeError(f"LLM API Authentication failed: {str(e)}") from e
+        except APIError as e:
+            logger.error("LLM Tool API Error: %s", str(e))
+            raise RuntimeError(f"LLM API request failed: {str(e)}") from e

@@ -9,7 +9,8 @@ from sqlalchemy import (
     Boolean,
     Text,
     ForeignKey,
-    Index
+    Index,
+    UniqueConstraint
 )
 from sqlalchemy.orm import relationship
 
@@ -83,6 +84,7 @@ class InvoiceModel(Base):
 
     __table_args__ = (
         Index("idx_vendor_invoice_num", "vendor_id", "invoice_number"),
+        UniqueConstraint("vendor_id", "invoice_number", name="uq_vendor_invoice_num"),
     )
 
 
