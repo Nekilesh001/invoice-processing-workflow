@@ -183,7 +183,7 @@ class InvoiceAgent:
         if not state.final_decision:
             state.final_decision = AgentDecisionSchema(
                 decision="HUMAN_REVIEW",
-                reason="ITERATION_LIMIT_EXCEEDED: Agent exceeded max reasoning steps without reaching conclusion.",
+                reason="MAX_ITERATIONS_EXCEEDED: Agent exceeded max reasoning steps without reaching conclusion.",
                 requires_human_review=True,
                 confidence_score=0.5
             )
