@@ -37,6 +37,20 @@ app.add_middleware(
 # Include master API router
 app.include_router(api_router)
 
+# Mount Web Frontend if built dist directory exists
+import os
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
+frontend_dist = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "dist")
+if os.path.exists(frontend_dist):
+    app.mount("/assets", StaticFiles(directory=os.path.join(frontend_dist, "assets")), name="static_assets")
+
+    @app.get("/", tags=["Frontend"])
+    def read_root():
+        """Serves the React Web Frontend single page application."""
+        return FileResponse(os.path.join(frontend_dist, "index.html"))
+
 
 @app.get("/health", tags=["Health"])
 def health_check():
