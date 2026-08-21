@@ -98,9 +98,9 @@ def lookup_purchase_order(po_number: Optional[str], session: Optional[Session] =
         "status": po_record["status"],
         "po_number": clean_po,
         "vendor_name": po_record["vendor_name"],
-        "authorized_total": po_record["authorized_total"],
+        "authorized_total": float(po_record["authorized_total"]),
         "currency": po_record["currency"],
-        "remaining_balance": po_record["remaining_balance"],
+        "remaining_balance": float(po_record["remaining_balance"]),
         "message": f"Purchase Order '{clean_po}' found. Authorized total: ${po_record['authorized_total']}."
     }
 
@@ -127,11 +127,57 @@ def check_duplicate_invoice(
     return {"is_duplicate": False, "message": "No duplicate found (no active session)."}
 
 
+def validate_invoice_totals(
+    subtotal: float,
+    total_amount: float,
+    tax_amount: float = 0.0,
+    shipping_charge: float = 0.0,
+    discount: float = 0.0,
+    other_charges: float = 0.0
+) -> Dict[str, Any]:
+    """
+    Agent tool: Executes deterministic Python math validation: subtotal + tax + shipping + other - discount == total_amount.
+    """
+    sub_d = Decimal(str(subtotal))
+    tax_d = Decimal(str(tax_amount))
+    ship_d = Decimal(str(shipping_charge))
+    disc_d = Decimal(str(discount))
+    other_d = Decimal(str(other_charges))
+    tot_d = Decimal(str(total_amount))
+
+    expected = sub_d + tax_d + ship_d + other_d - disc_d
+    diff = abs(expected - tot_d)
+
+    is_valid = diff <= Decimal("0.01")
+    return {
+        "is_valid": is_valid,
+        "expected_total": float(expected),
+        "claimed_total": float(tot_d),
+        "difference": float(diff),
+        "message": "Invoice math is correct." if is_valid else f"Math mismatch: Subtotal + Tax - Discount = ${expected:.2f}, but Total claims ${tot_d:.2f}."
+    }
+
+
 def create_review_task(invoice_id: int, reason: str, session: Optional[Session] = None) -> Dict[str, Any]:
     """
     Agent tool: Creates a human review queue task.
+    Idempotent: Avoids duplicate creation if a PENDING review task already exists for invoice_id.
     """
     if session:
+        existing = session.query(ReviewTaskModel).filter(
+            ReviewTaskModel.invoice_id == invoice_id,
+            ReviewTaskModel.status == "PENDING"
+        ).first()
+
+        if existing:
+            return {
+                "task_id": existing.id,
+                "invoice_id": invoice_id,
+                "reason": existing.reason,
+                "status": "PENDING",
+                "message": f"Idempotent: Pending review task #{existing.id} already exists for invoice #{invoice_id}."
+            }
+
         review_task = ReviewTaskModel(
             invoice_id=invoice_id,
             reason=reason,
@@ -154,3 +200,84 @@ def create_review_task(invoice_id: int, reason: str, session: Optional[Session] 
         "status": "PENDING",
         "message": f"Simulated review task created for reason: '{reason}'."
     }
+
+
+# OpenAI Function / Tool Calling Schema Specifications
+AGENT_TOOLS_SCHEMA = [
+    {
+        "type": "function",
+        "function": {
+            "name": "lookup_vendor",
+            "description": "Looks up vendor details in master database registry to verify tax ID and approval status.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "vendor_name": {"type": "string", "description": "Name of the vendor/biller to verify"}
+                },
+                "required": ["vendor_name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "lookup_purchase_order",
+            "description": "Looks up Purchase Order in PO database to verify authorized amount, vendor, and status.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "po_number": {"type": "string", "description": "Purchase Order number (e.g. PO-8842)"}
+                },
+                "required": ["po_number"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "check_duplicate_invoice",
+            "description": "Queries database for pre-existing matching vendor name and invoice number pairs.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "vendor_name": {"type": "string", "description": "Name of the vendor"},
+                    "invoice_number": {"type": "string", "description": "Invoice number"}
+                },
+                "required": ["vendor_name", "invoice_number"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "validate_invoice_totals",
+            "description": "Executes Python deterministic arithmetic check: subtotal + tax + shipping + other - discount == total_amount.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "subtotal": {"type": "number", "description": "Subtotal amount"},
+                    "total_amount": {"type": "number", "description": "Claimed total amount"},
+                    "tax_amount": {"type": "number", "description": "Tax amount"},
+                    "shipping_charge": {"type": "number", "description": "Shipping fee"},
+                    "discount": {"type": "number", "description": "Discount amount"}
+                },
+                "required": ["subtotal", "total_amount"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_review_task",
+            "description": "Routes invoice to human review queue due to validation error, PO mismatch, or duplicate suspect.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "invoice_id": {"type": "integer", "description": "Invoice database ID"},
+                    "reason": {"type": "string", "description": "Reason for human review escalation"}
+                },
+                "required": ["invoice_id", "reason"]
+            }
+        }
+    }
+]
