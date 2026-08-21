@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldAlert, CheckCircle2, XCircle, AlertTriangle, RefreshCw, UserCheck, Code, LayoutGrid, DollarSign, Calendar, FileText, Building } from 'lucide-react';
 
-export default function ReviewQueue({ onCountChange }) {
+export default function ReviewQueue({ onCountChange, onSelectInvoice }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
@@ -285,23 +285,31 @@ export default function ReviewQueue({ onCountChange }) {
               )}
 
               {/* Action Buttons */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '18px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.2fr', gap: '12px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '18px' }}>
                 <button
                   className="btn-primary"
-                  style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', justifyContent: 'center', padding: '12px', fontSize: '0.92rem' }}
+                  style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', justifyContent: 'center', padding: '10px 12px', fontSize: '0.85rem' }}
                   onClick={() => handleAction(task.id, 'approve')}
                   disabled={actionLoading === task.id}
                 >
-                  <CheckCircle2 size={18} /> Approve Invoice
+                  <CheckCircle2 size={16} /> Approve
                 </button>
 
                 <button
                   className="btn-secondary"
-                  style={{ background: 'rgba(244, 63, 94, 0.15)', color: '#f87171', borderColor: 'rgba(244, 63, 94, 0.3)', justifyContent: 'center', padding: '12px', fontSize: '0.92rem' }}
+                  style={{ background: 'rgba(244, 63, 94, 0.15)', color: '#f87171', borderColor: 'rgba(244, 63, 94, 0.3)', justifyContent: 'center', padding: '10px 12px', fontSize: '0.85rem' }}
                   onClick={() => handleAction(task.id, 'reject')}
                   disabled={actionLoading === task.id}
                 >
-                  <XCircle size={18} /> Reject Invoice
+                  <XCircle size={16} /> Reject
+                </button>
+
+                <button
+                  className="btn-secondary"
+                  style={{ background: 'rgba(6, 182, 212, 0.15)', color: '#38bdf8', borderColor: 'rgba(6, 182, 212, 0.3)', justifyContent: 'center', padding: '10px 12px', fontSize: '0.85rem' }}
+                  onClick={() => onSelectInvoice && onSelectInvoice(task.invoice_id)}
+                >
+                  <FileText size={16} /> Inspect Detail
                 </button>
               </div>
             </div>

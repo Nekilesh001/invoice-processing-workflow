@@ -5,10 +5,12 @@ import InvoiceUpload from './components/InvoiceUpload';
 import AgentTraceViewer from './components/AgentTraceViewer';
 import InvoicesTable from './components/InvoicesTable';
 import ReviewQueue from './components/ReviewQueue';
+import InvoiceDetailView from './components/InvoiceDetailView';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('upload');
   const [lastResult, setLastResult] = useState(null);
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState(null);
   const [pendingReviewCount, setPendingReviewCount] = useState(0);
   const [apiOnline, setApiOnline] = useState(true);
 
@@ -33,8 +35,23 @@ export default function App() {
 
   const handleProcessingComplete = (resultData) => {
     setLastResult(resultData);
-    // Switch to trace tab automatically to show live agent reasoning
+    // If invoice ID was stored, open its detail view
+    if (resultData?.result?.database_invoice_id) {
+      setSelectedInvoiceId(resultData.result.database_invoice_id);
+    }
     setActiveTab('trace');
+  };
+
+  const handleSelectInvoice = (invoiceId) => {
+    setSelectedInvoiceId(invoiceId);
+    setActiveTab('detail');
+  };
+
+  const handleTabChange = (tabKey) => {
+    if (tabKey !== 'detail') {
+      setSelectedInvoiceId(null);
+    }
+    setActiveTab(tabKey);
   };
 
   return (
@@ -58,26 +75,50 @@ export default function App() {
       <div style={{ position: 'relative', zIndex: 10, maxWidth: '1400px', margin: '0 auto', paddingBottom: '40px' }}>
         <Navbar
           activeTab={activeTab}
-          setActiveTab={setActiveTab}
+          setActiveTab={handleTabChange}
           pendingReviewCount={pendingReviewCount}
           apiOnline={apiOnline}
         />
 
         <main style={{ padding: '0 24px', marginTop: '16px' }}>
-          {activeTab === 'upload' && (
-            <InvoiceUpload onProcessingComplete={handleProcessingComplete} />
-          )}
+          {selectedInvoiceId || activeTab === 'detail' ? (
+            <InvoiceDetailView
+              invoiceId={selectedInvoiceId || lastResult?.result?.database_invoice_id}
+              onBack={() => {
+                setSelectedInvoiceId(null);
+                setActiveTab('invoices');
+              }}
+              onStatusUpdated={() => {
+                // Refresh pending review badge
+                fetch('/api/v1/reviews?status=PENDING')
+                  .then(res => res.json())
+                  .then(data => setPendingReviewCount(Array.isArray(data) ? data.length : 0));
+              }}
+            />
+          ) : (
+            <>
+              {activeTab === 'upload' && (
+                <InvoiceUpload onProcessingComplete={handleProcessingComplete} />
+              )}
 
-          {activeTab === 'trace' && (
-            <AgentTraceViewer lastResult={lastResult} />
-          )}
+              {activeTab === 'trace' && (
+                <AgentTraceViewer
+                  lastResult={lastResult}
+                  onInspectDetail={(invId) => handleSelectInvoice(invId)}
+                />
+              )}
 
-          {activeTab === 'invoices' && (
-            <InvoicesTable />
-          )}
+              {activeTab === 'invoices' && (
+                <InvoicesTable onSelectInvoice={handleSelectInvoice} />
+              )}
 
-          {activeTab === 'reviews' && (
-            <ReviewQueue onCountChange={(count) => setPendingReviewCount(count)} />
+              {activeTab === 'reviews' && (
+                <ReviewQueue
+                  onCountChange={(count) => setPendingReviewCount(count)}
+                  onSelectInvoice={handleSelectInvoice}
+                />
+              )}
+            </>
           )}
         </main>
       </div>

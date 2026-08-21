@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Database, Search, Eye, RefreshCw, FileText, CheckCircle, AlertTriangle } from 'lucide-react';
 
-export default function InvoicesTable() {
+export default function InvoicesTable({ onSelectInvoice }) {
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -134,9 +134,9 @@ export default function InvoicesTable() {
                   <button
                     className="btn-secondary"
                     style={{ padding: '6px 12px', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                    onClick={() => setSelectedInvoice(inv)}
+                    onClick={() => onSelectInvoice ? onSelectInvoice(inv.id) : setSelectedInvoice(inv)}
                   >
-                    <Eye size={14} /> Details
+                    <Eye size={14} /> Verification Detail
                   </button>
                 </td>
               </tr>

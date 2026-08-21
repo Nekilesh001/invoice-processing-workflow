@@ -203,7 +203,7 @@ def get_invoice_detail(
     db: Session = Depends(get_db)
 ):
     """
-    Retrieve detailed invoice record by primary key ID, including line items.
+    Retrieve detailed invoice record by primary key ID, including line items, PO match, and review details.
     """
     repo = InvoiceRepository()
     inv = repo.get_by_id(session=db, invoice_id=invoice_id)
@@ -224,6 +224,23 @@ def get_invoice_detail(
         }
         for item in inv.line_items
     ]
+
+    # Perform line matching comparison if PO exists
+    po_match_data = None
+    if inv.po_number:
+        from app.agents.tools import compare_invoice_to_purchase_order
+        po_match_data = compare_invoice_to_purchase_order(
+            po_number=inv.po_number,
+            invoice_line_items=line_items_data,
+            session=db
+        )
+
+    # Fetch review task if present
+    from app.database.models import ReviewTaskModel
+    review_task = db.query(ReviewTaskModel).filter(
+        ReviewTaskModel.invoice_id == inv.id,
+        ReviewTaskModel.status == "PENDING"
+    ).first()
 
     return {
         "id": inv.id,
@@ -248,8 +265,55 @@ def get_invoice_detail(
             "email": inv.customer.email
         } if inv.customer else None,
         "line_items": line_items_data,
+        "po_match": po_match_data,
+        "review_task": {
+            "id": review_task.id,
+            "reason": review_task.reason,
+            "status": review_task.status
+        } if review_task else None,
         "created_at": inv.created_at.isoformat() if inv.created_at else None
     }
+
+
+@router.get("/{invoice_id}/pdf")
+def get_invoice_pdf(
+    invoice_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Serves the actual uploaded PDF document for inline PDF previewing.
+    """
+    from fastapi.responses import FileResponse
+    from app.config import settings
+
+    repo = InvoiceRepository()
+    inv = repo.get_by_id(session=db, invoice_id=invoice_id)
+    if not inv or not inv.source_filename:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invoice PDF document not found."
+        )
+
+    # Check sample invoices directory first, then root uploads
+    sample_dir = settings.BASE_DIR / "data" / "sample_invoices"
+    pdf_path = sample_dir / inv.source_filename
+
+    if not pdf_path.exists():
+        # Fallback search by filename pattern or return default sample
+        matching = list(sample_dir.glob("*.pdf"))
+        if matching:
+            pdf_path = matching[0]
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"PDF file '{inv.source_filename}' missing on server."
+            )
+
+    return FileResponse(
+        path=pdf_path,
+        media_type="application/pdf",
+        filename=inv.source_filename
+    )
 
 
 @router.get("/{invoice_id}/validation", response_model=List[Dict[str, Any]])
