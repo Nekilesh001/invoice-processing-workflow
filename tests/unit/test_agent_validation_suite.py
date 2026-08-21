@@ -22,12 +22,31 @@ logger = logging.getLogger("app.agents.invoice_agent")
 logger.setLevel(logging.INFO)
 
 
+from app.database.repositories.invoice_repository import InvoiceRepository
+from app.database.repositories.purchase_order_repository import PurchaseOrderRepository
+
+
 @pytest.fixture
 def test_db_session():
     engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
     Base.metadata.create_all(bind=engine)
     Session = sessionmaker(bind=engine)
     session = Session()
+
+    inv_repo = InvoiceRepository()
+    v1 = inv_repo.get_or_create_vendor(session, "Acme Cloud Solutions Inc.", tax_id="US-88492019")
+    v2 = inv_repo.get_or_create_vendor(session, "Vertex Software Solutions", tax_id="US-10293847")
+
+    po_repo = PurchaseOrderRepository()
+    po_repo.create(session, {
+        "po_number": "PO-8842",
+        "vendor_id": v1.id,
+        "authorized_total": "3300.00",
+        "remaining_balance": "3300.00",
+        "status": "APPROVED"
+    })
+
+    session.commit()
     try:
         yield session
     finally:
@@ -142,7 +161,7 @@ def test_scenario_4_duplicate_invoice_and_idempotency(mock_llm_extract, test_db_
         "invoice_date": "2026-08-15",
         "due_date": "2026-09-15",
         "currency": "USD",
-        "vendor": {"vendor_name": "Duplicate Test Biller Inc."},
+        "vendor": {"vendor_name": "Acme Cloud Solutions Inc."},
         "subtotal": 1200.00,
         "total_amount": 1200.00
     }
@@ -172,7 +191,7 @@ def test_scenario_4_duplicate_invoice_and_idempotency(mock_llm_extract, test_db_
     assert tasks_count == 1
 
 
-def test_scenario_5_controlled_tool_failure():
+def test_scenario_5_controlled_tool_failure(test_db_session):
     """
     Step 7 — Run Tool Failure. Verify non-existent PO yields safe HUMAN_REVIEW fallback.
     """
@@ -189,7 +208,7 @@ def test_scenario_5_controlled_tool_failure():
         total_amount=Decimal("1000.00")
     )
     val_res = validator.validate(invoice)
-    decision = agent.evaluate_and_decide(invoice, val_res)
+    decision = agent.evaluate_and_decide(invoice, val_res, db_session=test_db_session)
 
     assert decision.action == "HUMAN_REVIEW"
     assert "PO_NOT_FOUND" in decision.reason

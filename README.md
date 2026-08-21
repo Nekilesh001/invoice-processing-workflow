@@ -14,13 +14,14 @@ Inspired by the **Agentic AI course from DeepLearning.AI by Andrew Ng**, this pl
 - **Pydantic Schemas**: Strongly-typed models with `Decimal` precision for financial totals, `date` fields, and nested line items.
 - **Deterministic Validation Engine**: 7 business rules verifying grand totals, line items arithmetic, date sanity (`due_date >= invoice_date`), and field completeness without relying on LLM for math.
 - **Autonomous Agentic AI Layer**: Observe-Reason-Act tool-calling agent (`InvoiceAgent`) executing domain verification tools:
-  - `lookup_vendor`: Master vendor registry lookup.
-  - `lookup_purchase_order`: PO verification and authorized amount matching.
-  - `check_duplicate_invoice`: Database-level duplicate detection.
+  - `lookup_vendor`: Real MySQL master vendor registry lookup with safe `UNKNOWN_VENDOR` routing to `HUMAN_REVIEW`.
+  - `lookup_purchase_order`: Real MySQL-backed PO database query (`PurchaseOrderRepository`) matching authorized amounts and remaining balances.
+  - `check_duplicate_invoice`: Database-level duplicate detection via `InvoiceRepository`.
   - `validate_invoice_totals`: Line item math verification tool.
   - `create_review_task`: Idempotent human-in-the-loop task queue routing.
-- **MySQL Relational Storage**: Database schema built with SQLAlchemy 2.0 and PyMySQL for master vendors, customers, invoices, line items, validation logs, and review tasks with `UniqueConstraint("vendor_id", "invoice_number")`.
-- **FastAPI REST API Backend**: OpenAPI Swagger documentation served at `/docs`, supporting PDF file upload processing and human-in-the-loop approval/rejection endpoints.
+- **MySQL Relational Storage**: Database schema built with SQLAlchemy 2.0 and PyMySQL for master vendors, customers, purchase orders (`purchase_orders`, `purchase_order_line_items`), invoices, line items, validation logs, and review tasks with `UniqueConstraint` indices.
+- **Idempotent DB Seeder**: Database seeder script (`scripts/seed_database.py`) populating synthetic master vendors and purchase orders into MySQL without data duplication.
+- **FastAPI REST API Backend**: OpenAPI Swagger documentation served at `/docs`, supporting real-time SSE streaming, PDF file upload processing, and human-in-the-loop approval/rejection endpoints.
 - **CLI & Evaluation Framework**: Command-line pipeline runner and benchmark evaluation suite measuring extraction accuracy, OCR trigger rate, and latency.
 
 ---

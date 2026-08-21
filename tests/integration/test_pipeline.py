@@ -10,12 +10,30 @@ from app.schemas.processing import ProcessingStatus
 from app.services.pipeline_runner import InvoicePipelineRunner
 
 
+from app.database.repositories.purchase_order_repository import PurchaseOrderRepository
+
+
 @pytest.fixture
 def sqlite_session():
     engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
     Base.metadata.create_all(bind=engine)
     Session = sessionmaker(bind=engine)
     session = Session()
+
+    inv_repo = InvoiceRepository()
+    v1 = inv_repo.get_or_create_vendor(session, "Acme Cloud Solutions Inc.", tax_id="US-88492019")
+    v2 = inv_repo.get_or_create_vendor(session, "Vertex Software Solutions", tax_id="US-10293847")
+
+    po_repo = PurchaseOrderRepository()
+    po_repo.create(session, {
+        "po_number": "PO-8842",
+        "vendor_id": v1.id,
+        "authorized_total": "3300.00",
+        "remaining_balance": "3300.00",
+        "status": "APPROVED"
+    })
+
+    session.commit()
     try:
         yield session
     finally:
@@ -104,7 +122,7 @@ def test_pipeline_duplicate_detection(mock_llm_extract, sqlite_session):
         "invoice_date": "2026-08-15",
         "due_date": "2026-09-15",
         "currency": "USD",
-        "vendor": {"vendor_name": "Duplicate Vendor Inc."},
+        "vendor": {"vendor_name": "Acme Cloud Solutions Inc."},
         "subtotal": 1000.00,
         "total_amount": 1000.00
     }

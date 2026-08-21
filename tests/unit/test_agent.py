@@ -9,21 +9,58 @@ from app.schemas.invoice import ExtractedInvoice, VendorInfo, LineItem
 from app.validation.validator import InvoiceValidator
 
 
-def test_agent_tools_direct():
-    v_res = lookup_vendor("Acme Cloud Solutions Inc.")
+from app.database.connection import get_engine, init_db, get_session_factory
+from app.database.repositories.invoice_repository import InvoiceRepository
+from app.database.repositories.purchase_order_repository import PurchaseOrderRepository
+
+
+@pytest.fixture
+def db_session():
+    engine = get_engine("sqlite:///:memory:")
+    init_db(engine)
+    session_factory = get_session_factory(engine)
+    session = session_factory()
+
+    inv_repo = InvoiceRepository()
+    v1 = inv_repo.get_or_create_vendor(session, "Acme Cloud Solutions Inc.", tax_id="US-88492019")
+    v2 = inv_repo.get_or_create_vendor(session, "Vertex Software Solutions", tax_id="US-10293847")
+
+    po_repo = PurchaseOrderRepository()
+    po_repo.create(session, {
+        "po_number": "PO-8842",
+        "vendor_id": v1.id,
+        "authorized_total": "3300.00",
+        "remaining_balance": "3300.00",
+        "status": "APPROVED"
+    })
+    po_repo.create(session, {
+        "po_number": "PO-EXHAUSTED",
+        "vendor_id": v1.id,
+        "authorized_total": "500.00",
+        "remaining_balance": "0.00",
+        "status": "EXHAUSTED"
+    })
+
+    session.commit()
+    yield session
+    session.close()
+
+
+def test_agent_tools_direct(db_session):
+    v_res = lookup_vendor("Acme Cloud Solutions Inc.", session=db_session)
     assert v_res["found"] is True
     assert v_res["status"] == "VERIFIED"
 
-    po_res = lookup_purchase_order("PO-8842")
+    po_res = lookup_purchase_order("PO-8842", session=db_session)
     assert po_res["found"] is True
     assert float(po_res["authorized_total"]) == 3300.00
 
-    po_invalid = lookup_purchase_order("PO-FAKE-999")
+    po_invalid = lookup_purchase_order("PO-FAKE-999", session=db_session)
     assert po_invalid["found"] is False
     assert po_invalid["status"] == "PO_NOT_FOUND"
 
 
-def test_scenario_1_normal_invoice_auto_process():
+def test_scenario_1_normal_invoice_auto_process(db_session):
     agent = InvoiceAgent()
     validator = InvoiceValidator()
 
@@ -48,7 +85,7 @@ def test_scenario_1_normal_invoice_auto_process():
     )
 
     val_res = validator.validate(invoice)
-    decision = agent.evaluate_and_decide(invoice, val_res)
+    decision = agent.evaluate_and_decide(invoice, val_res, db_session=db_session)
 
     assert decision.action == "AUTO_PROCESS"
     assert decision.po_verified is True
@@ -82,7 +119,7 @@ def test_scenario_2_duplicate_invoice_human_review():
     assert "DUPLICATE_SUSPECTED" in decision.reason
 
 
-def test_scenario_3_vendor_not_found_human_review():
+def test_scenario_3_vendor_not_found_human_review(db_session):
     agent = InvoiceAgent()
     validator = InvoiceValidator()
 
@@ -95,13 +132,13 @@ def test_scenario_3_vendor_not_found_human_review():
         total_amount=Decimal("1000.00")
     )
     val_res = validator.validate(invoice)
-    decision = agent.evaluate_and_decide(invoice, val_res)
+    decision = agent.evaluate_and_decide(invoice, val_res, db_session=db_session)
 
     assert decision.action == "HUMAN_REVIEW"
-    assert "VENDOR_UNKNOWN" in decision.reason or "VALIDATION_FAILED" in decision.reason
+    assert "UNKNOWN_VENDOR" in decision.reason or "VENDOR_UNKNOWN" in decision.reason or "VALIDATION_FAILED" in decision.reason
 
 
-def test_scenario_4_po_mismatch_human_review():
+def test_scenario_4_po_mismatch_human_review(db_session):
     agent = InvoiceAgent()
     validator = InvoiceValidator()
 
@@ -117,14 +154,14 @@ def test_scenario_4_po_mismatch_human_review():
     )
 
     val_res = validator.validate(invoice)
-    decision = agent.evaluate_and_decide(invoice, val_res)
+    decision = agent.evaluate_and_decide(invoice, val_res, db_session=db_session)
 
     assert decision.action == "HUMAN_REVIEW"
     assert "PO_MISMATCH" in decision.reason
     assert decision.po_verified is False
 
 
-def test_scenario_5_missing_po_no_po_tool_call():
+def test_scenario_5_missing_po_no_po_tool_call(db_session):
     agent = InvoiceAgent()
     validator = InvoiceValidator()
 
@@ -148,13 +185,13 @@ def test_scenario_5_missing_po_no_po_tool_call():
     )
 
     val_res = validator.validate(invoice)
-    decision = agent.evaluate_and_decide(invoice, val_res)
+    decision = agent.evaluate_and_decide(invoice, val_res, db_session=db_session)
 
     executed_tool_names = [t["tool"] for t in decision.executed_tools]
     assert "lookup_purchase_order" not in executed_tool_names  # Proves dynamic tool selection based on evidence!
 
 
-def test_scenario_6_tool_failure_human_review_fallback():
+def test_scenario_6_tool_failure_human_review_fallback(db_session):
     agent = InvoiceAgent()
     validator = InvoiceValidator()
 
@@ -170,7 +207,7 @@ def test_scenario_6_tool_failure_human_review_fallback():
     )
 
     val_res = validator.validate(invoice)
-    decision = agent.evaluate_and_decide(invoice, val_res)
+    decision = agent.evaluate_and_decide(invoice, val_res, db_session=db_session)
 
     assert decision.action == "HUMAN_REVIEW"
     assert "PO_NOT_FOUND" in decision.reason

@@ -243,11 +243,12 @@ class InvoiceAgent:
             if tool_result.get("found") and tool_result.get("is_approved"):
                 state.vendor_verified = True
             else:
+                v_name = tool_result.get("vendor_name", "Unknown")
                 return AgentDecisionSchema(
                     decision="HUMAN_REVIEW",
-                    reason=f"VENDOR_UNKNOWN: {tool_result.get('message', 'Vendor unverified.')}",
+                    reason=f"UNKNOWN_VENDOR: Vendor '{v_name}' is not registered in master vendor registry.",
                     requires_human_review=True,
-                    confidence_score=0.90
+                    confidence_score=0.95
                 )
 
         elif fn_name == "lookup_purchase_order":
@@ -258,10 +259,11 @@ class InvoiceAgent:
                     requires_human_review=True,
                     confidence_score=0.95
                 )
-            if tool_result.get("status") == "EXHAUSTED":
+            po_status = tool_result.get("status")
+            if po_status in ["EXHAUSTED", "CANCELLED", "CLOSED", "DRAFT"]:
                 return AgentDecisionSchema(
                     decision="HUMAN_REVIEW",
-                    reason=f"PO_EXHAUSTED: {tool_result.get('message', 'PO exhausted.')}",
+                    reason=f"PO_{po_status}: Purchase Order is in invalid state '{po_status}'.",
                     requires_human_review=True,
                     confidence_score=0.95
                 )

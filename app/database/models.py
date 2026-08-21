@@ -31,6 +31,7 @@ class VendorModel(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     invoices = relationship("InvoiceModel", back_populates="vendor", cascade="all, delete-orphan")
+    purchase_orders = relationship("PurchaseOrderModel", back_populates="vendor", cascade="all, delete-orphan")
 
 
 class CustomerModel(Base):
@@ -145,3 +146,54 @@ class ReviewTaskModel(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     invoice = relationship("InvoiceModel", back_populates="review_tasks")
+
+
+class PurchaseOrderModel(Base):
+    """Enterprise Purchase Order master table."""
+    __tablename__ = "purchase_orders"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    po_number = Column(String(100), nullable=False, index=True)
+    vendor_id = Column(Integer, ForeignKey("vendors.id", ondelete="RESTRICT"), nullable=False, index=True)
+    po_date = Column(Date, nullable=True)
+    currency = Column(String(10), default="USD", nullable=False)
+
+    subtotal = Column(Numeric(12, 2), nullable=True)
+    discount = Column(Numeric(12, 2), default=0.00, nullable=True)
+    tax_amount = Column(Numeric(12, 2), default=0.00, nullable=True)
+    total_amount = Column(Numeric(12, 2), nullable=True)
+    authorized_total = Column(Numeric(12, 2), nullable=False)
+    remaining_balance = Column(Numeric(12, 2), nullable=False)
+
+    status = Column(String(50), default="APPROVED", nullable=False, index=True)  # DRAFT, PENDING, APPROVED, PARTIALLY_USED, EXHAUSTED, CANCELLED, CLOSED
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    vendor = relationship("VendorModel", back_populates="purchase_orders")
+    line_items = relationship("PurchaseOrderLineItemModel", back_populates="purchase_order", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index("idx_vendor_po_num", "vendor_id", "po_number"),
+        UniqueConstraint("vendor_id", "po_number", name="uq_vendor_po_num"),
+    )
+
+
+class PurchaseOrderLineItemModel(Base):
+    """Line items for Purchase Orders."""
+    __tablename__ = "purchase_order_line_items"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    purchase_order_id = Column(Integer, ForeignKey("purchase_orders.id", ondelete="CASCADE"), nullable=False, index=True)
+    description = Column(Text, nullable=False)
+    product_code = Column(String(100), nullable=True)
+    quantity = Column(Numeric(10, 2), default=1.00, nullable=False)
+    unit = Column(String(20), default="units", nullable=True)
+    unit_price = Column(Numeric(12, 2), default=0.00, nullable=False)
+    discount = Column(Numeric(12, 2), default=0.00, nullable=True)
+    tax_rate = Column(Numeric(5, 2), default=0.00, nullable=True)
+    tax_amount = Column(Numeric(12, 2), default=0.00, nullable=True)
+    line_total = Column(Numeric(12, 2), default=0.00, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    purchase_order = relationship("PurchaseOrderModel", back_populates="line_items")
+
