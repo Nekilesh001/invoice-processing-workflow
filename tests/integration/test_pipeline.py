@@ -31,7 +31,10 @@ def sqlite_session():
         "authorized_total": "3300.00",
         "remaining_balance": "3300.00",
         "status": "APPROVED"
-    })
+    }, [
+        {"description": "Enterprise Cloud Server Infrastructure", "quantity": 1.0, "unit_price": 2500.0, "line_total": 2500.0},
+        {"description": "Database Service", "quantity": 2.0, "unit_price": 250.0, "line_total": 500.0}
+    ])
 
     session.commit()
     try:

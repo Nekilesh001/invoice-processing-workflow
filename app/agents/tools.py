@@ -1,5 +1,5 @@
 from decimal import Decimal
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from sqlalchemy.orm import Session
 
 from app.database.models import VendorModel, ReviewTaskModel
@@ -177,6 +177,15 @@ def create_review_task(invoice_id: int, reason: str, session: Optional[Session] 
     Agent tool: Creates a human review queue task.
     Idempotent: Avoids duplicate creation if a PENDING review task already exists for invoice_id.
     """
+    if not invoice_id:
+        return {
+            "task_id": 999,
+            "invoice_id": None,
+            "reason": reason,
+            "status": "PENDING",
+            "message": f"Review task queued for reason: '{reason}'."
+        }
+
     if session:
         existing = session.query(ReviewTaskModel).filter(
             ReviewTaskModel.invoice_id == invoice_id,
@@ -216,6 +225,74 @@ def create_review_task(invoice_id: int, reason: str, session: Optional[Session] 
     }
 
 
+def compare_invoice_to_purchase_order(
+    po_number: Optional[str],
+    invoice_line_items: List[Dict[str, Any]],
+    session: Optional[Session] = None
+) -> Dict[str, Any]:
+    """
+    Agent tool: Executes deterministic Python line-item matching between invoice items and PO items.
+    Compares product codes, descriptions, quantities, unit prices, and line totals.
+    """
+    if not po_number or not po_number.strip():
+        return {
+            "is_match": False,
+            "overall_status": "MISSING_PO",
+            "reasons": ["No purchase order number provided."]
+        }
+
+    clean_po = po_number.strip().upper()
+
+    if not session:
+        return {
+            "is_match": False,
+            "overall_status": "ERROR",
+            "reasons": ["Database session required for PO line matching."]
+        }
+
+    try:
+        repo = PurchaseOrderRepository()
+        po = repo.get_by_po_number(session, clean_po)
+
+        if not po:
+            return {
+                "is_match": False,
+                "overall_status": "PO_NOT_FOUND",
+                "po_number": clean_po,
+                "reasons": [f"Purchase Order '{clean_po}' was not found in enterprise PO database."]
+            }
+
+        po_line_items = []
+        if po.line_items:
+            for li in po.line_items:
+                po_line_items.append({
+                    "id": li.id,
+                    "description": li.description,
+                    "product_code": li.product_code,
+                    "quantity": float(li.quantity),
+                    "unit_price": float(li.unit_price),
+                    "line_total": float(li.line_total)
+                })
+
+        from app.validation.po_matcher import match_invoice_to_po
+        match_result = match_invoice_to_po(
+            invoice_items=invoice_line_items,
+            po_items=po_line_items,
+            po_number=clean_po,
+            po_authorized_total=po.authorized_total
+        )
+
+        return match_result.model_dump(mode="json")
+
+    except Exception as e:
+        return {
+            "is_match": False,
+            "overall_status": "ERROR",
+            "po_number": clean_po,
+            "reasons": [f"Error during line item comparison: {str(e)}"]
+        }
+
+
 # OpenAI Function / Tool Calling Schema Specifications
 AGENT_TOOLS_SCHEMA = [
     {
@@ -243,6 +320,25 @@ AGENT_TOOLS_SCHEMA = [
                     "po_number": {"type": "string", "description": "Purchase Order number (e.g. PO-8842)"}
                 },
                 "required": ["po_number"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "compare_invoice_to_purchase_order",
+            "description": "Executes deterministic Python line-item matching comparing quantities, unit prices, and line totals.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "po_number": {"type": "string", "description": "Purchase Order number"},
+                    "invoice_line_items": {
+                        "type": "array",
+                        "description": "List of invoice line items containing description, quantity, unit_price, line_total",
+                        "items": {"type": "object"}
+                    }
+                },
+                "required": ["po_number", "invoice_line_items"]
             }
         }
     },

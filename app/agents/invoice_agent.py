@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.agents.tools import (
     AGENT_TOOLS_SCHEMA,
     check_duplicate_invoice,
+    compare_invoice_to_purchase_order,
     create_review_task,
     lookup_purchase_order,
     lookup_vendor,
@@ -25,8 +26,8 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class AgentDecision:
-    """Structured decision output produced by InvoiceAgent."""
-    action: str  # "AUTO_PROCESS" or "HUMAN_REVIEW"
+    """Final decision output schema returned by InvoiceAgent."""
+    action: str
     reason: str
     executed_tools: List[Dict[str, Any]] = field(default_factory=list)
     vendor_verified: bool = False
@@ -37,11 +38,10 @@ class AgentDecision:
 
 class InvoiceAgent:
     """
-    Autonomous LLM-driven Tool-Using Agentic Decision Engine:
-    - Bounded Observe -> Reason -> Act -> Observe loop (max_iterations = 5).
-    - Dynamically selects domain tools via OpenAI-compatible function calling API.
-    - Evaluates tool responses and PO amount alignment.
-    - Routes to AUTO_PROCESS or HUMAN_REVIEW with complete audit trace.
+    Autonomous AI Agent for Invoice Verification:
+    - Bounded Observe-Reason-Act loop (max 5 iterations)
+    - Dynamic domain tool calling (vendor lookup, PO lookup, PO line matching, duplicate check, total math check)
+    - Fallback deterministic evaluation for offline/unconfigured environments
     """
 
     def __init__(
@@ -60,6 +60,7 @@ class InvoiceAgent:
         self.tool_functions = {
             "lookup_vendor": lookup_vendor,
             "lookup_purchase_order": lookup_purchase_order,
+            "compare_invoice_to_purchase_order": compare_invoice_to_purchase_order,
             "check_duplicate_invoice": check_duplicate_invoice,
             "validate_invoice_totals": validate_invoice_totals,
             "create_review_task": create_review_task,
@@ -280,6 +281,17 @@ class InvoiceAgent:
                     )
             state.po_verified = True
 
+        elif fn_name == "compare_invoice_to_purchase_order":
+            if not tool_result.get("is_match"):
+                reasons = tool_result.get("reasons", ["PO line items mismatch."])
+                reason_str = "; ".join(reasons)
+                return AgentDecisionSchema(
+                    decision="HUMAN_REVIEW",
+                    reason=f"PO_LINE_MISMATCH: {reason_str}",
+                    requires_human_review=True,
+                    confidence_score=0.98
+                )
+
         return None
 
     def _execute_fallback_agentic_loop(self, state: AgentState, db_session: Optional[Session], on_tool_callback: Optional[Any] = None) -> AgentDecisionSchema:
@@ -320,6 +332,19 @@ class InvoiceAgent:
             dec = self._evaluate_tool_observation("lookup_purchase_order", po_out, state)
             if dec:
                 return dec
+
+            # Tool 4: Compare PO Line Items
+            if inv.line_items:
+                raw_items = [json.loads(item.model_dump_json()) for item in inv.line_items]
+                comp_args = {
+                    "po_number": inv.po_number,
+                    "invoice_line_items": raw_items
+                }
+                comp_out = self._execute_tool("compare_invoice_to_purchase_order", comp_args, db_session, on_tool_callback=on_tool_callback)
+                state.executed_tools.append({"tool": "compare_invoice_to_purchase_order", "args": comp_args, "output": comp_out})
+                dec = self._evaluate_tool_observation("compare_invoice_to_purchase_order", comp_out, state)
+                if dec:
+                    return dec
 
         # Check deterministic validation
         if not state.validation_result.is_valid:

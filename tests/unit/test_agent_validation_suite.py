@@ -44,7 +44,9 @@ def test_db_session():
         "authorized_total": "3300.00",
         "remaining_balance": "3300.00",
         "status": "APPROVED"
-    })
+    }, [
+        {"description": "Cloud Infra", "quantity": 1.0, "unit_price": 3000.0, "line_total": 3000.0}
+    ])
 
     session.commit()
     try:

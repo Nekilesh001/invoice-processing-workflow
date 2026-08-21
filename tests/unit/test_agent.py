@@ -32,7 +32,9 @@ def db_session():
         "authorized_total": "3300.00",
         "remaining_balance": "3300.00",
         "status": "APPROVED"
-    })
+    }, [
+        {"description": "Cloud Infra", "quantity": 1.0, "unit_price": 3000.0, "line_total": 3000.0}
+    ])
     po_repo.create(session, {
         "po_number": "PO-EXHAUSTED",
         "vendor_id": v1.id,

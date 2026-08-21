@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     DB_USER: str = "root"
     DB_PASSWORD: str = "root"
 
+    # PO Line Item Matching Tolerances
+    PO_PRICE_TOLERANCE: float = 0.01
+    PO_TOTAL_TOLERANCE: float = 0.01
+    PO_QUANTITY_TOLERANCE: float = 0.00
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
