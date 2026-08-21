@@ -3,7 +3,7 @@ Database Layer Package.
 Handles SQLAlchemy ORM models, database connections, and repository patterns.
 """
 
-from app.database.connection import get_db, init_db, SessionLocal
+from app.database.connection import get_db, get_db_context, init_db, SessionLocal
 from app.database.models import (
     Base,
     VendorModel,

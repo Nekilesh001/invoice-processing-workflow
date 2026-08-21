@@ -46,15 +46,28 @@ def get_session_factory(engine=None):
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=get_engine())
 
 
-@contextmanager
 def get_db(db_url: Optional[str] = None) -> Generator[Session, None, None]:
-    """Context manager for managing database session lifecycle."""
+    """Generator function managing database session lifecycle for FastAPI dependency injection."""
     eng = get_engine(db_url)
     session_factory = get_session_factory(eng)
     session = session_factory()
     try:
         yield session
         session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+@contextmanager
+def get_db_context(db_url: Optional[str] = None) -> Generator[Session, None, None]:
+    """Context manager wrapper for non-FastAPI block code."""
+    generator = get_db(db_url)
+    session = next(generator)
+    try:
+        yield session
     except Exception:
         session.rollback()
         raise

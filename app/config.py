@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Optional
+from urllib.parse import quote_plus
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -35,7 +36,8 @@ class Settings(BaseSettings):
     @property
     def database_url(self) -> str:
         """Construct SQLAlchemy MySQL URL using PyMySQL driver."""
-        return f"mysql+pymysql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+        escaped_pw = quote_plus(self.DB_PASSWORD)
+        return f"mysql+pymysql://{self.DB_USER}:{escaped_pw}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
 
 settings = Settings()

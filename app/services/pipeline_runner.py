@@ -3,7 +3,7 @@ from typing import Optional, Union
 from sqlalchemy.orm import Session
 
 from app.agents.invoice_agent import InvoiceAgent, AgentDecision
-from app.database.connection import get_db, init_db
+from app.database.connection import get_db_context, init_db
 from app.database.repositories.invoice_repository import InvoiceRepository
 from app.extraction.extractor import DocumentExtractor
 from app.llm.client import LLMClient
@@ -103,7 +103,7 @@ class InvoicePipelineRunner:
             if db_session:
                 return _persist(db_session)
             else:
-                with get_db() as session:
+                with get_db_context() as session:
                     return _persist(session)
 
         except Exception as e:
