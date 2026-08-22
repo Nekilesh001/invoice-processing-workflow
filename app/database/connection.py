@@ -77,5 +77,6 @@ def get_db_context(db_url: Optional[str] = None) -> Generator[Session, None, Non
 
 def init_db(engine=None):
     """Initializes all database tables created via Base metadata."""
+    import app.database.models  # Ensures all ORM models are registered with Base metadata
     eng = engine or get_engine()
     Base.metadata.create_all(bind=eng)

@@ -30,6 +30,11 @@ def process_invoice_upload(
     # Save uploaded file bytes to temporary file for pipeline processing
     try:
         content = file.file.read()
+        from app.config import settings
+        save_dir = settings.BASE_DIR / "data" / "sample_invoices"
+        save_dir.mkdir(parents=True, exist_ok=True)
+        (save_dir / file.filename).write_bytes(content)
+
         runner = InvoicePipelineRunner()
         result = runner.process_file(file_input=content, file_name=file.filename, db_session=db)
         return result
@@ -64,6 +69,15 @@ def process_invoice_upload_stream(
 
     file_content = file.file.read()
     file_name = file.filename
+
+    # Save uploaded file bytes to sample_invoices directory for PDF preview serving
+    try:
+        from app.config import settings
+        save_dir = settings.BASE_DIR / "data" / "sample_invoices"
+        save_dir.mkdir(parents=True, exist_ok=True)
+        (save_dir / file_name).write_bytes(file_content)
+    except Exception as save_err:
+        pass
 
     def event_generator():
         try:

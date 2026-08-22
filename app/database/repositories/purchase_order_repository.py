@@ -80,14 +80,48 @@ class PurchaseOrderRepository:
 
         return po
 
-    def list(self, session: Session, vendor_id: Optional[int] = None, status: Optional[str] = None) -> List[PurchaseOrderModel]:
-        """Lists all purchase orders with optional filtering."""
-        query = session.query(PurchaseOrderModel).options(
+    def list(
+        self,
+        session: Session,
+        vendor_id: Optional[int] = None,
+        status: Optional[str] = None,
+        search: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0
+    ) -> List[PurchaseOrderModel]:
+        """Lists all purchase orders with search and status filtering."""
+        from sqlalchemy import or_, func
+
+        query = session.query(PurchaseOrderModel).join(
+            VendorModel, PurchaseOrderModel.vendor_id == VendorModel.id
+        ).options(
             joinedload(PurchaseOrderModel.vendor)
         )
+
         if vendor_id is not None:
             query = query.filter(PurchaseOrderModel.vendor_id == vendor_id)
-        if status:
-            query = query.filter(PurchaseOrderModel.status == status)
 
-        return query.order_by(PurchaseOrderModel.created_at.desc()).all()
+        if status and status.upper() != "ALL":
+            query = query.filter(PurchaseOrderModel.status == status.upper())
+
+        if search and search.strip():
+            clean_search = f"%{search.strip().lower()}%"
+            query = query.filter(
+                or_(
+                    func.lower(PurchaseOrderModel.po_number).like(clean_search),
+                    func.lower(VendorModel.name).like(clean_search)
+                )
+            )
+
+        return query.order_by(PurchaseOrderModel.created_at.desc()).limit(limit).offset(offset).all()
+
+    def get_related_invoices(self, session: Session, po: PurchaseOrderModel) -> List[Any]:
+        """Retrieves invoices associated with a given Purchase Order."""
+        from app.database.models import InvoiceModel
+        if not po:
+            return []
+
+        return session.query(InvoiceModel).filter(
+            InvoiceModel.po_number == po.po_number,
+            InvoiceModel.vendor_id == po.vendor_id
+        ).order_by(InvoiceModel.created_at.desc()).all()

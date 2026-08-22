@@ -21,7 +21,8 @@ Inspired by the **Agentic AI course from DeepLearning.AI by Andrew Ng**, this pl
   - `create_review_task`: Idempotent human-in-the-loop task queue routing.
 - **MySQL Relational Storage**: Database schema built with SQLAlchemy 2.0 and PyMySQL for master vendors, customers, purchase orders (`purchase_orders`, `purchase_order_line_items`), invoices, line items, validation logs, and review tasks with `UniqueConstraint` indices.
 - **Idempotent DB Seeder**: Database seeder script (`scripts/seed_database.py`) populating synthetic master vendors and purchase orders into MySQL without data duplication.
-- **FastAPI REST API Backend**: OpenAPI Swagger documentation served at `/docs`, supporting real-time SSE streaming, PDF file upload processing, and human-in-the-loop approval/rejection endpoints.
+- **Vendor Management Screen**: Searchable master vendor registry view displaying tax IDs, registration numbers, approved status, total PO count, billed invoice count, contact info, and related invoices history.
+- **Purchase Order Management Screen**: Enterprise PO inspection dashboard supporting search, status filters (`APPROVED`, `EXHAUSTED`, `CANCELLED`), authorized limit total vs remaining balance tracking, line items table, and associated billed invoices.
 - **CLI & Evaluation Framework**: Command-line pipeline runner and benchmark evaluation suite measuring extraction accuracy, OCR trigger rate, and latency.
 
 ---

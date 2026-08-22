@@ -6,11 +6,15 @@ import AgentTraceViewer from './components/AgentTraceViewer';
 import InvoicesTable from './components/InvoicesTable';
 import ReviewQueue from './components/ReviewQueue';
 import InvoiceDetailView from './components/InvoiceDetailView';
+import VendorsView from './components/VendorsView';
+import PurchaseOrdersView from './components/PurchaseOrdersView';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('upload');
   const [lastResult, setLastResult] = useState(null);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState(null);
+  const [selectedVendorId, setSelectedVendorId] = useState(null);
+  const [selectedPoId, setSelectedPoId] = useState(null);
   const [pendingReviewCount, setPendingReviewCount] = useState(0);
   const [apiOnline, setApiOnline] = useState(true);
 
@@ -35,7 +39,6 @@ export default function App() {
 
   const handleProcessingComplete = (resultData) => {
     setLastResult(resultData);
-    // If invoice ID was stored, open its detail view
     if (resultData?.result?.database_invoice_id) {
       setSelectedInvoiceId(resultData.result.database_invoice_id);
     }
@@ -45,6 +48,16 @@ export default function App() {
   const handleSelectInvoice = (invoiceId) => {
     setSelectedInvoiceId(invoiceId);
     setActiveTab('detail');
+  };
+
+  const handleSelectVendor = (vendorId) => {
+    setSelectedVendorId(vendorId);
+    setActiveTab('vendors');
+  };
+
+  const handleSelectPo = (poId) => {
+    setSelectedPoId(poId);
+    setActiveTab('purchase_orders');
   };
 
   const handleTabChange = (tabKey) => {
@@ -89,7 +102,6 @@ export default function App() {
                 setActiveTab('invoices');
               }}
               onStatusUpdated={() => {
-                // Refresh pending review badge
                 fetch('/api/v1/reviews?status=PENDING')
                   .then(res => res.json())
                   .then(data => setPendingReviewCount(Array.isArray(data) ? data.length : 0));
@@ -110,6 +122,22 @@ export default function App() {
 
               {activeTab === 'invoices' && (
                 <InvoicesTable onSelectInvoice={handleSelectInvoice} />
+              )}
+
+              {activeTab === 'vendors' && (
+                <VendorsView
+                  onSelectVendor={handleSelectVendor}
+                  onSelectPo={handleSelectPo}
+                  onSelectInvoice={handleSelectInvoice}
+                />
+              )}
+
+              {activeTab === 'purchase_orders' && (
+                <PurchaseOrdersView
+                  onSelectPo={handleSelectPo}
+                  onSelectVendor={handleSelectVendor}
+                  onSelectInvoice={handleSelectInvoice}
+                />
               )}
 
               {activeTab === 'reviews' && (

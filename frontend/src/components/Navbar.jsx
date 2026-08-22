@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bot, FileText, CheckCircle2, ShieldAlert, Cpu, Database } from 'lucide-react';
+import { Bot, FileText, CheckCircle2, ShieldAlert, Cpu, Database, Building2, ShoppingBag } from 'lucide-react';
 
 export default function Navbar({ activeTab, setActiveTab, pendingReviewCount, apiOnline }) {
   return (
@@ -30,21 +30,35 @@ export default function Navbar({ activeTab, setActiveTab, pendingReviewCount, ap
       <nav style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255, 255, 255, 0.03)', padding: '4px', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
         <button
           className={activeTab === 'upload' ? 'btn-primary' : 'btn-secondary'}
-          style={{ padding: '8px 16px', fontSize: '0.85rem', border: 'none' }}
+          style={{ padding: '8px 14px', fontSize: '0.85rem', border: 'none' }}
           onClick={() => setActiveTab('upload')}
         >
           <FileText size={16} /> Process Upload
         </button>
         <button
           className={activeTab === 'invoices' ? 'btn-primary' : 'btn-secondary'}
-          style={{ padding: '8px 16px', fontSize: '0.85rem', border: 'none' }}
+          style={{ padding: '8px 14px', fontSize: '0.85rem', border: 'none' }}
           onClick={() => setActiveTab('invoices')}
         >
           <Database size={16} /> Invoices
         </button>
         <button
+          className={activeTab === 'vendors' ? 'btn-primary' : 'btn-secondary'}
+          style={{ padding: '8px 14px', fontSize: '0.85rem', border: 'none' }}
+          onClick={() => setActiveTab('vendors')}
+        >
+          <Building2 size={16} /> Vendors
+        </button>
+        <button
+          className={activeTab === 'purchase_orders' ? 'btn-primary' : 'btn-secondary'}
+          style={{ padding: '8px 14px', fontSize: '0.85rem', border: 'none' }}
+          onClick={() => setActiveTab('purchase_orders')}
+        >
+          <ShoppingBag size={16} /> Purchase Orders
+        </button>
+        <button
           className={activeTab === 'trace' ? 'btn-primary' : 'btn-secondary'}
-          style={{ padding: '8px 16px', fontSize: '0.85rem', border: 'none' }}
+          style={{ padding: '8px 14px', fontSize: '0.85rem', border: 'none' }}
           onClick={() => setActiveTab('trace')}
         >
           <Cpu size={16} /> Agent Trace
