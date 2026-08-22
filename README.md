@@ -21,10 +21,9 @@ Inspired by the **Agentic AI course from DeepLearning.AI by Andrew Ng**, this pl
   - `create_review_task`: Idempotent human-in-the-loop task queue routing.
 - **MySQL Relational Storage**: Database schema built with SQLAlchemy 2.0 and PyMySQL for master vendors, customers, purchase orders (`purchase_orders`, `purchase_order_line_items`), invoices, line items, validation logs, and review tasks with `UniqueConstraint` indices.
 - **Idempotent DB Seeder**: Database seeder script (`scripts/seed_database.py`) populating synthetic master vendors and purchase orders into MySQL without data duplication.
-- **Vendor Management Screen**: Searchable master vendor registry view displaying tax IDs, registration numbers, approved status, total PO count, billed invoice count, contact info, and related invoices history.
-- **Purchase Order Management Screen**: Enterprise PO inspection dashboard supporting search, status filters (`APPROVED`, `EXHAUSTED`, `CANCELLED`), authorized limit total vs remaining balance tracking, line items table, and associated billed invoices.
-- **Human Review & Decision History**: Auditable accounts payable review workflow recording reviewer identity, mandatory rejection notes, timestamped decision audit logs (`review_actions`), and status transitions (`NEEDS_REVIEW → APPROVED / REJECTED`).
-- **CLI & Evaluation Framework**: Command-line pipeline runner and benchmark evaluation suite measuring extraction accuracy, OCR trigger rate, and latency.
+- **Authentication & RBAC**: JWT Bearer token authentication (`POST /api/v1/auth/login`) with role-based access control (`ADMIN`, `AP_MANAGER`, `REVIEWER`, `VIEWER`) and reviewer identity tracking on all audit actions.
+- **Operations Dashboard**: Real-time accounts payable analytics dashboard (`GET /api/v1/dashboard/summary`) with SQL aggregate counts, financial monetary totals, workflow status distribution bar, and review exception breakdowns.
+- **AI System Evaluation Benchmark**: Comprehensive evaluation suite (`scripts/evaluate_pipeline.py`) measuring end-to-end extraction accuracy, OCR fallback rate, PO line matching correctness, zero unsafe auto-approvals, and stage-by-stage execution latency.
 
 ---
 

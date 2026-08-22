@@ -21,7 +21,8 @@ def process_invoice_upload(
     """
     Upload an invoice PDF file for extraction, validation, agent reasoning, and database persistence.
     """
-    if not file.filename.lower().endswith((".pdf", ".png", ".jpg", ".jpeg", ".tiff")):
+    safe_filename = Path(file.filename).name
+    if not safe_filename.lower().endswith((".pdf", ".png", ".jpg", ".jpeg", ".tiff")):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Unsupported file format. Please upload a PDF or image file."
@@ -30,14 +31,22 @@ def process_invoice_upload(
     # Save uploaded file bytes to temporary file for pipeline processing
     try:
         content = file.file.read()
+        if len(content) > 10 * 1024 * 1024:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="File size exceeds maximum allowed limit of 10MB."
+            )
+
         from app.config import settings
         save_dir = settings.BASE_DIR / "data" / "sample_invoices"
         save_dir.mkdir(parents=True, exist_ok=True)
-        (save_dir / file.filename).write_bytes(content)
+        (save_dir / safe_filename).write_bytes(content)
 
         runner = InvoicePipelineRunner()
-        result = runner.process_file(file_input=content, file_name=file.filename, db_session=db)
+        result = runner.process_file(file_input=content, file_name=safe_filename, db_session=db)
         return result
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -54,10 +63,18 @@ def process_invoice_upload_stream(
     Upload an invoice file with real-time SSE event streaming:
     Emits raw extracted text immediately, LLM ideation steps, tool executions, and final decision.
     """
-    if not file.filename.lower().endswith((".pdf", ".png", ".jpg", ".jpeg", ".tiff")):
+    safe_filename = Path(file.filename).name
+    if not safe_filename.lower().endswith((".pdf", ".png", ".jpg", ".jpeg", ".tiff")):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Unsupported file format. Please upload a PDF or image file."
+        )
+
+    content = file.file.read()
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File size exceeds maximum allowed limit of 10MB."
         )
 
     from fastapi.responses import StreamingResponse
@@ -67,8 +84,8 @@ def process_invoice_upload_stream(
     from app.agents.invoice_agent import InvoiceAgent
     from app.schemas.processing import ProcessingStatus
 
-    file_content = file.file.read()
-    file_name = file.filename
+    file_content = content
+    file_name = safe_filename
 
     # Save uploaded file bytes to sample_invoices directory for PDF preview serving
     try:

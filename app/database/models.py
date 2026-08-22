@@ -17,6 +17,22 @@ from sqlalchemy.orm import relationship
 from app.database.connection import Base
 
 
+class UserModel(Base):
+    """User account table for authentication and Role-Based Access Control (RBAC)."""
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    username = Column(String(100), unique=True, nullable=False, index=True)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    password_hash = Column(String(255), nullable=False)
+    full_name = Column(String(255), nullable=True)
+    role = Column(String(50), default="VIEWER", nullable=False)  # ADMIN, AP_MANAGER, REVIEWER, VIEWER
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    review_actions = relationship("ReviewActionModel", back_populates="reviewer_user")
+
+
 class VendorModel(Base):
     """Master vendor/biller table."""
     __tablename__ = "vendors"
@@ -160,12 +176,14 @@ class ReviewActionModel(Base):
     action = Column(String(50), nullable=False)  # APPROVED, REJECTED
     previous_invoice_status = Column(String(50), nullable=False)
     new_invoice_status = Column(String(50), nullable=False)
+    reviewer_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     reviewer_name = Column(String(100), default="Finance Reviewer", nullable=False)
     comment = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     invoice = relationship("InvoiceModel", back_populates="review_actions")
     review_task = relationship("ReviewTaskModel", back_populates="review_actions")
+    reviewer_user = relationship("UserModel", back_populates="review_actions")
 
 
 class PurchaseOrderModel(Base):

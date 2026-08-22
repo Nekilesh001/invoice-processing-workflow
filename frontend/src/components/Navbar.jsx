@@ -1,9 +1,9 @@
 import React from 'react';
-import { Bot, FileText, CheckCircle2, ShieldAlert, Cpu, Database, Building2, ShoppingBag, LayoutDashboard } from 'lucide-react';
+import { Bot, FileText, CheckCircle2, ShieldAlert, Cpu, Database, Building2, ShoppingBag, LayoutDashboard, User, LogOut } from 'lucide-react';
 
-export default function Navbar({ activeTab, setActiveTab, pendingReviewCount, apiOnline }) {
+export default function Navbar({ activeTab, setActiveTab, pendingReviewCount, apiOnline, user, onLogout }) {
   return (
-    <header className="glass-panel" style={{ margin: '16px 24px', padding: '16px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <header className="glass-panel" style={{ margin: '16px 24px', padding: '16px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
         <div style={{
           width: '42px',
@@ -72,10 +72,10 @@ export default function Navbar({ activeTab, setActiveTab, pendingReviewCount, ap
         </button>
         <button
           className={activeTab === 'reviews' ? 'btn-primary' : 'btn-secondary'}
-          style={{ padding: '8px 16px', fontSize: '0.85rem', border: 'none', position: 'relative' }}
+          style={{ padding: '8px 14px', fontSize: '0.85rem', border: 'none', position: 'relative' }}
           onClick={() => setActiveTab('reviews')}
         >
-          <ShieldAlert size={16} /> Human Review Queue
+          <ShieldAlert size={16} /> Review Queue
           {pendingReviewCount > 0 && (
             <span style={{
               position: 'absolute',
@@ -95,12 +95,30 @@ export default function Navbar({ activeTab, setActiveTab, pendingReviewCount, ap
       </nav>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <div className="badge badge-info" style={{ gap: '6px' }}>
-          <Cpu size={12} /> GLM-4.7-Flash
-        </div>
+        {user && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255, 255, 255, 0.05)', padding: '6px 12px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+            <User size={14} color="#818cf8" />
+            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#f8fafc' }}>
+              {user.full_name || user.username}
+            </span>
+            <span className={user.role === 'ADMIN' ? 'badge badge-danger' : user.role === 'AP_MANAGER' ? 'badge badge-info' : user.role === 'REVIEWER' ? 'badge badge-warning' : 'badge badge-secondary'} style={{ fontSize: '0.65rem', padding: '2px 6px' }}>
+              {user.role}
+            </span>
+          </div>
+        )}
         <div className={apiOnline ? 'badge badge-success' : 'badge badge-danger'}>
-          <CheckCircle2 size={12} /> {apiOnline ? 'API Connected' : 'Backend Offline'}
+          <CheckCircle2 size={12} /> {apiOnline ? 'Online' : 'Offline'}
         </div>
+        {user && onLogout && (
+          <button
+            className="btn-secondary"
+            title="Sign out of portal"
+            style={{ padding: '6px 10px', fontSize: '0.8rem' }}
+            onClick={onLogout}
+          >
+            <LogOut size={14} />
+          </button>
+        )}
       </div>
     </header>
   );

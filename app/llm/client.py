@@ -62,41 +62,47 @@ class LLMClient:
 
         user_content = f"Extracted Document Text:\n```text\n{document_text}\n```"
 
-        try:
-            response = client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": self.system_prompt},
-                    {"role": "user", "content": user_content},
-                ],
-                response_format={"type": "json_object"},
-                temperature=0.0,
-            )
+        max_retries = 3
+        last_err = None
 
-            raw_content = response.choices[0].message.content
-            if not raw_content:
-                raise ValueError("LLM returned empty response content.")
+        for attempt in range(1, max_retries + 1):
+            try:
+                response = client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": self.system_prompt},
+                        {"role": "user", "content": user_content},
+                    ],
+                    response_format={"type": "json_object"},
+                    temperature=0.0,
+                )
 
-            cleaned_content = raw_content.strip()
-            if cleaned_content.startswith("```json"):
-                cleaned_content = cleaned_content[7:]
-            if cleaned_content.startswith("```"):
-                cleaned_content = cleaned_content[3:]
-            if cleaned_content.endswith("```"):
-                cleaned_content = cleaned_content[:-3]
-            cleaned_content = cleaned_content.strip()
+                raw_content = response.choices[0].message.content
+                if not raw_content:
+                    raise ValueError("LLM returned empty response content.")
 
-            return json.loads(cleaned_content)
+                cleaned_content = raw_content.strip()
+                if cleaned_content.startswith("```json"):
+                    cleaned_content = cleaned_content[7:]
+                if cleaned_content.startswith("```"):
+                    cleaned_content = cleaned_content[3:]
+                if cleaned_content.endswith("```"):
+                    cleaned_content = cleaned_content[:-3]
+                cleaned_content = cleaned_content.strip()
 
-        except AuthenticationError as e:
-            logger.error("LLM Authentication failed: %s", str(e))
-            raise RuntimeError(f"LLM API Authentication failed: {str(e)}") from e
-        except APIError as e:
-            logger.error("LLM API Error: %s", str(e))
-            raise RuntimeError(f"LLM API request failed: {str(e)}") from e
-        except json.JSONDecodeError as e:
-            logger.error("Failed to parse LLM JSON response: %s", str(e))
-            raise ValueError(f"LLM output is not valid JSON: {str(e)}") from e
+                return json.loads(cleaned_content)
+
+            except AuthenticationError as e:
+                logger.error("LLM Authentication failed: %s", str(e))
+                raise RuntimeError(f"LLM API Authentication failed: {str(e)}") from e
+            except (APIError, Exception) as e:
+                last_err = e
+                logger.warning("LLM API attempt %d/%d failed: %s", attempt, max_retries, str(e))
+                if attempt < max_retries:
+                    import time
+                    time.sleep(2 ** (attempt - 1))  # 1s, 2s backoff
+
+        raise RuntimeError(f"LLM API request failed after {max_retries} attempts: {str(last_err)}")
 
     def chat_completion_with_tools(
         self,
@@ -104,22 +110,31 @@ class LLMClient:
         tools: List[Dict[str, Any]],
     ) -> Any:
         """
-        Executes OpenAI chat completion call supplying function/tool specs.
+        Executes OpenAI chat completion call supplying function/tool specs with exponential backoff retries.
         Returns response message choice object (which may contain tool_calls or content).
         """
         client = self._get_client()
-        try:
-            response = client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                tools=tools,
-                tool_choice="auto",
-                temperature=0.0,
-            )
-            return response.choices[0].message
-        except AuthenticationError as e:
-            logger.error("LLM Tool Authentication failed: %s", str(e))
-            raise RuntimeError(f"LLM API Authentication failed: {str(e)}") from e
-        except APIError as e:
-            logger.error("LLM Tool API Error: %s", str(e))
-            raise RuntimeError(f"LLM API request failed: {str(e)}") from e
+        max_retries = 3
+        last_err = None
+
+        for attempt in range(1, max_retries + 1):
+            try:
+                response = client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    tools=tools,
+                    tool_choice="auto",
+                    temperature=0.0,
+                )
+                return response.choices[0].message
+            except AuthenticationError as e:
+                logger.error("LLM Tool Authentication failed: %s", str(e))
+                raise RuntimeError(f"LLM API Authentication failed: {str(e)}") from e
+            except (APIError, Exception) as e:
+                last_err = e
+                logger.warning("LLM tool attempt %d/%d failed: %s", attempt, max_retries, str(e))
+                if attempt < max_retries:
+                    import time
+                    time.sleep(2 ** (attempt - 1))
+
+        raise RuntimeError(f"LLM tool API request failed after {max_retries} attempts: {str(last_err)}")

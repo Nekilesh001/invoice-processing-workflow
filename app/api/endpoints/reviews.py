@@ -2,8 +2,10 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
+from app.api.deps import get_current_user_optional
 from app.database.connection import get_db
-from app.database.models import InvoiceModel, ReviewTaskModel
+from app.database.models import InvoiceModel, ReviewTaskModel, ReviewActionModel, UserModel
+from app.schemas.review import ReviewActionRequest, ReviewActionResponse
 
 router = APIRouter(prefix="/reviews", tags=["Human Review Tasks"])
 
@@ -48,54 +50,37 @@ def list_review_tasks(
         raw_json_data = {
             "invoice_number": inv.invoice_number if inv else None,
             "po_number": inv.po_number if inv else None,
-            "invoice_date": str(inv.invoice_date) if (inv and inv.invoice_date) else None,
-            "due_date": str(inv.due_date) if (inv and inv.due_date) else None,
-            "currency": inv.currency if inv else "USD",
             "vendor_name": inv.vendor.name if (inv and inv.vendor) else None,
             "customer_name": inv.customer.name if (inv and inv.customer) else None,
-            "subtotal": float(inv.subtotal) if (inv and inv.subtotal is not None) else None,
-            "tax_amount": float(inv.tax_amount) if (inv and inv.tax_amount is not None) else None,
-            "total_amount": float(inv.total_amount) if (inv and inv.total_amount is not None) else None,
+            "total_amount": float(inv.total_amount) if (inv and inv.total_amount is not None) else 0.0,
             "line_items": line_items,
-            "flagged_reason": t.reason
+            "validation": val_records[0] if val_records else None
         }
 
         results.append({
-            "id": t.id,
+            "task_id": t.id,
             "invoice_id": t.invoice_id,
             "reason": t.reason,
             "status": t.status,
-            "assigned_to": t.assigned_to,
-            "invoice_number": inv.invoice_number if inv else "N/A",
-            "po_number": inv.po_number if inv else None,
-            "vendor_name": inv.vendor.name if (inv and inv.vendor) else "Unassigned Vendor",
-            "customer_name": inv.customer.name if (inv and inv.customer) else "Unassigned Customer",
-            "invoice_date": str(inv.invoice_date) if (inv and inv.invoice_date) else None,
-            "due_date": str(inv.due_date) if (inv and inv.due_date) else None,
-            "currency": inv.currency if inv else "USD",
-            "subtotal": float(inv.subtotal) if (inv and inv.subtotal is not None) else 0.0,
-            "tax_amount": float(inv.tax_amount) if (inv and inv.tax_amount is not None) else 0.0,
+            "created_at": t.created_at.isoformat() if t.created_at else None,
+            "invoice_number": inv.invoice_number if inv else None,
+            "vendor_name": inv.vendor.name if (inv and inv.vendor) else "Unknown",
             "total_amount": float(inv.total_amount) if (inv and inv.total_amount is not None) else 0.0,
-            "line_items": line_items,
-            "validation_records": val_records,
-            "raw_json": raw_json_data,
-            "created_at": t.created_at.isoformat() if t.created_at else None
+            "po_number": inv.po_number if inv else None,
+            "raw_json": raw_json_data
         })
     return results
-
-
-from app.database.models import InvoiceModel, ReviewTaskModel, ReviewActionModel
-from app.schemas.review import ReviewActionRequest, ReviewActionResponse
 
 
 @router.post("/{task_id}/approve", response_model=Dict[str, Any])
 def approve_review_task(
     task_id: int,
     payload: Optional[ReviewActionRequest] = None,
+    current_user: Optional[UserModel] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
     """
-    Human Reviewer manual approval: transactionally updates review task to APPROVED, invoice to APPROVED, and records review decision history.
+    Human Reviewer manual approval: updates task & invoice status to APPROVED, and records review decision history.
     """
     task = db.query(ReviewTaskModel).filter(ReviewTaskModel.id == task_id).first()
     if not task:
@@ -110,7 +95,14 @@ def approve_review_task(
             detail=f"Review task #{task_id} has already been closed with status {task.status}."
         )
 
-    reviewer_name = payload.reviewer if (payload and payload.reviewer) else "Finance Reviewer"
+    if current_user and current_user.role == "VIEWER":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access forbidden. VIEWER role is not authorized to approve invoices."
+        )
+
+    reviewer_name = current_user.full_name or current_user.username if current_user else (payload.reviewer if (payload and payload.reviewer) else "Finance Reviewer")
+    reviewer_id = current_user.id if current_user else None
     comment = payload.get_effective_comment() if payload else None
 
     previous_status = task.invoice.status if task.invoice else "NEEDS_REVIEW"
@@ -126,6 +118,7 @@ def approve_review_task(
         action="APPROVED",
         previous_invoice_status=previous_status,
         new_invoice_status=new_status,
+        reviewer_id=reviewer_id,
         reviewer_name=reviewer_name,
         comment=comment
     )
@@ -147,6 +140,7 @@ def approve_review_task(
 def reject_review_task(
     task_id: int,
     payload: Optional[ReviewActionRequest] = None,
+    current_user: Optional[UserModel] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
     """
@@ -165,6 +159,12 @@ def reject_review_task(
             detail=f"Review task #{task_id} has already been closed with status {task.status}."
         )
 
+    if current_user and current_user.role == "VIEWER":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access forbidden. VIEWER role is not authorized to reject invoices."
+        )
+
     comment = payload.get_effective_comment() if payload else None
     if not comment:
         raise HTTPException(
@@ -172,7 +172,8 @@ def reject_review_task(
             detail="Reviewer comment is required when rejecting an invoice."
         )
 
-    reviewer_name = payload.reviewer if (payload and payload.reviewer) else "Finance Reviewer"
+    reviewer_name = current_user.full_name or current_user.username if current_user else (payload.reviewer if (payload and payload.reviewer) else "Finance Reviewer")
+    reviewer_id = current_user.id if current_user else None
     previous_status = task.invoice.status if task.invoice else "NEEDS_REVIEW"
     new_status = "REJECTED"
 
@@ -186,6 +187,7 @@ def reject_review_task(
         action="REJECTED",
         previous_invoice_status=previous_status,
         new_invoice_status=new_status,
+        reviewer_id=reviewer_id,
         reviewer_name=reviewer_name,
         comment=comment
     )

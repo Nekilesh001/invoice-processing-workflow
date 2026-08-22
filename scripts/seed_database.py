@@ -21,6 +21,33 @@ def seed_database():
     print("[SEED] Starting database seeding process...")
 
     with get_db_context() as db:
+        from app.database.models import UserModel
+        from app.core.security import hash_password
+
+        # 0. Seed RBAC Users
+        users_data = [
+            {"username": "admin", "email": "admin@invoicemind.ai", "full_name": "System Administrator", "role": "ADMIN"},
+            {"username": "ap_manager", "email": "manager@invoicemind.ai", "full_name": "AP Manager", "role": "AP_MANAGER"},
+            {"username": "reviewer", "email": "reviewer@invoicemind.ai", "full_name": "Senior AP Reviewer", "role": "REVIEWER"},
+            {"username": "viewer", "email": "viewer@invoicemind.ai", "full_name": "Auditor Viewer", "role": "VIEWER"}
+        ]
+        hashed_pwd = hash_password("Admin@123")
+
+        for udata in users_data:
+            existing_user = db.query(UserModel).filter(UserModel.username == udata["username"]).first()
+            if not existing_user:
+                uobj = UserModel(
+                    username=udata["username"],
+                    email=udata["email"],
+                    full_name=udata["full_name"],
+                    password_hash=hashed_pwd,
+                    role=udata["role"],
+                    is_active=True
+                )
+                db.add(uobj)
+                print(f"[SEED] Created User: {udata['username']} ({udata['role']})")
+        db.flush()
+
         inv_repo = InvoiceRepository()
         po_repo = PurchaseOrderRepository()
 

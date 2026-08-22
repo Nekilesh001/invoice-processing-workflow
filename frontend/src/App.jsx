@@ -9,8 +9,15 @@ import InvoiceDetailView from './components/InvoiceDetailView';
 import VendorsView from './components/VendorsView';
 import PurchaseOrdersView from './components/PurchaseOrdersView';
 import DashboardView from './components/DashboardView';
+import LoginView from './components/LoginView';
 
 export default function App() {
+  const [token, setToken] = useState(() => localStorage.getItem('invoicemind_token') || null);
+  const [user, setUser] = useState(() => {
+    const saved = localStorage.getItem('invoicemind_user');
+    return saved ? JSON.parse(saved) : null;
+  });
+
   const [activeTab, setActiveTab] = useState('dashboard');
   const [lastResult, setLastResult] = useState(null);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState(null);
@@ -18,6 +25,20 @@ export default function App() {
   const [selectedPoId, setSelectedPoId] = useState(null);
   const [pendingReviewCount, setPendingReviewCount] = useState(0);
   const [apiOnline, setApiOnline] = useState(true);
+
+  const handleLoginSuccess = (newToken, newUser) => {
+    setToken(newToken);
+    setUser(newUser);
+    localStorage.setItem('invoicemind_token', newToken);
+    localStorage.setItem('invoicemind_user', JSON.stringify(newUser));
+  };
+
+  const handleLogout = () => {
+    setToken(null);
+    setUser(null);
+    localStorage.removeItem('invoicemind_token');
+    localStorage.removeItem('invoicemind_user');
+  };
 
   useEffect(() => {
     // Check backend connection health
@@ -92,10 +113,16 @@ export default function App() {
           setActiveTab={handleTabChange}
           pendingReviewCount={pendingReviewCount}
           apiOnline={apiOnline}
+          user={user}
+          onLogout={handleLogout}
         />
 
         <main style={{ padding: '0 24px', marginTop: '16px' }}>
-          {selectedInvoiceId || activeTab === 'detail' ? (
+          {!token || !user ? (
+            <LoginView onLoginSuccess={handleLoginSuccess} />
+          ) : (
+            <>
+              {selectedInvoiceId || activeTab === 'detail' ? (
             <InvoiceDetailView
               invoiceId={selectedInvoiceId || lastResult?.result?.database_invoice_id}
               onBack={() => {
@@ -154,6 +181,8 @@ export default function App() {
                   onSelectInvoice={handleSelectInvoice}
                 />
               )}
+            </>
+          )}
             </>
           )}
         </main>
