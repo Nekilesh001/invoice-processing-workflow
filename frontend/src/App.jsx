@@ -108,14 +108,16 @@ export default function App() {
 
       {/* Main Glassmorphism Dashboard Layout */}
       <div style={{ position: 'relative', zIndex: 10, maxWidth: '1400px', margin: '0 auto', paddingBottom: '40px' }}>
-        <Navbar
-          activeTab={activeTab}
-          setActiveTab={handleTabChange}
-          pendingReviewCount={pendingReviewCount}
-          apiOnline={apiOnline}
-          user={user}
-          onLogout={handleLogout}
-        />
+        {token && user && (
+          <Navbar
+            activeTab={activeTab}
+            setActiveTab={handleTabChange}
+            pendingReviewCount={pendingReviewCount}
+            apiOnline={apiOnline}
+            user={user}
+            onLogout={handleLogout}
+          />
+        )}
 
         <main style={{ padding: '0 24px', marginTop: '16px' }}>
           {!token || !user ? (

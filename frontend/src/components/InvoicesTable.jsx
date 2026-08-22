@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Database, Search, Eye, RefreshCw, FileText, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Database, Search, Eye, RefreshCw, FileText, CheckCircle2, ShieldAlert, XCircle, LayoutGrid, List, Building2, ShoppingBag, DollarSign, Calendar } from 'lucide-react';
 
 export default function InvoicesTable({ onSelectInvoice }) {
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
-  const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [viewMode, setViewMode] = useState('cards'); // 'cards' or 'table'
 
   const fetchInvoices = async () => {
     setLoading(true);
@@ -30,36 +30,64 @@ export default function InvoicesTable({ onSelectInvoice }) {
   const filteredInvoices = invoices.filter(inv => {
     const matchesSearch =
       (inv.invoice_number || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (inv.vendor_name || '').toLowerCase().includes(searchTerm.toLowerCase());
+      (inv.vendor_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (inv.po_number || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'ALL' || inv.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
   return (
-    <div className="glass-panel" style={{ padding: '32px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'rgba(6, 182, 212, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Database size={22} color="#22d3ee" />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      
+      {/* Header Panel */}
+      <div className="glass-panel" style={{ padding: '24px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'rgba(6, 182, 212, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Database size={24} color="#22d3ee" />
           </div>
           <div>
-            <h2 style={{ fontSize: '1.2rem', fontWeight: 700 }}>MySQL Processed Invoices</h2>
-            <p style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Live relational records stored in `invoice_db`</p>
+            <h2 style={{ fontSize: '1.3rem', fontWeight: 800, margin: 0, color: '#f8fafc' }}>
+              MySQL Billed Invoices Repository
+            </h2>
+            <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '2px' }}>
+              Relational records stored in `invoice_db` database
+            </p>
           </div>
         </div>
 
-        <button className="btn-secondary" style={{ padding: '8px 14px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }} onClick={fetchInvoices}>
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh
-        </button>
+        {/* Action Controls & View Mode Toggle */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {/* Card / Table View Toggle */}
+          <div style={{ display: 'flex', background: 'rgba(255, 255, 255, 0.05)', padding: '3px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+            <button
+              className={viewMode === 'cards' ? 'btn-primary' : 'btn-secondary'}
+              style={{ padding: '6px 12px', fontSize: '0.78rem', border: 'none' }}
+              onClick={() => setViewMode('cards')}
+            >
+              <LayoutGrid size={14} /> Cards
+            </button>
+            <button
+              className={viewMode === 'table' ? 'btn-primary' : 'btn-secondary'}
+              style={{ padding: '6px 12px', fontSize: '0.78rem', border: 'none' }}
+              onClick={() => setViewMode('table')}
+            >
+              <List size={14} /> Table
+            </button>
+          </div>
+
+          <button className="btn-secondary" style={{ padding: '8px 14px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }} onClick={fetchInvoices}>
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh Data
+          </button>
+        </div>
       </div>
 
-      {/* Search & Filters */}
-      <div style={{ display: 'flex', gap: '16px', marginBottom: '20px' }}>
-        <div style={{ flex: 1, position: 'relative' }}>
+      {/* Search & Status Filter Bar */}
+      <div className="glass-panel" style={{ padding: '16px 24px', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, position: 'relative', minWidth: '280px' }}>
           <Search size={18} color="#64748b" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
           <input
             type="text"
-            placeholder="Search by invoice number or vendor..."
+            placeholder="Search by invoice number, vendor, or PO number..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
             style={{
@@ -96,103 +124,146 @@ export default function InvoicesTable({ onSelectInvoice }) {
         </select>
       </div>
 
-      {/* Table */}
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)', color: '#94a3b8', fontSize: '0.75rem' }} className="font-mono">
-              <th style={{ padding: '12px 16px' }}>ID</th>
-              <th style={{ padding: '12px 16px' }}>INVOICE #</th>
-              <th style={{ padding: '12px 16px' }}>VENDOR</th>
-              <th style={{ padding: '12px 16px' }}>PO NUMBER</th>
-              <th style={{ padding: '12px 16px' }}>TOTAL</th>
-              <th style={{ padding: '12px 16px' }}>STATUS</th>
-              <th style={{ padding: '12px 16px', textAlign: 'right' }}>ACTIONS</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredInvoices.length === 0 && !loading && (
-              <tr>
-                <td colSpan="7" style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
-                  No processed invoices found in MySQL database.
-                </td>
-              </tr>
-            )}
-            {filteredInvoices.map((inv) => (
-              <tr key={inv.id} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.04)', transition: 'background 0.15s ease' }} className="table-row-hover">
-                <td style={{ padding: '14px 16px' }} className="font-mono">{inv.id}</td>
-                <td style={{ padding: '14px 16px', fontWeight: 600 }} className="font-mono">{inv.invoice_number}</td>
-                <td style={{ padding: '14px 16px' }}>{inv.vendor_name || 'Unassigned'}</td>
-                <td style={{ padding: '14px 16px', color: inv.po_number ? '#34d399' : '#64748b' }} className="font-mono">{inv.po_number || 'NONE'}</td>
-                <td style={{ padding: '14px 16px', fontWeight: 700, color: '#818cf8' }}>${(inv.total_amount || 0).toFixed(2)}</td>
-                <td style={{ padding: '14px 16px' }}>
-                  <span className={inv.status === 'APPROVED' ? 'badge badge-success' : inv.status === 'NEEDS_REVIEW' ? 'badge badge-warning' : 'badge badge-danger'}>
-                    {inv.status}
-                  </span>
-                </td>
-                <td style={{ padding: '14px 16px', textAlign: 'right' }}>
-                  <button
-                    className="btn-secondary"
-                    style={{ padding: '6px 12px', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                    onClick={() => onSelectInvoice ? onSelectInvoice(inv.id) : setSelectedInvoice(inv)}
-                  >
-                    <Eye size={14} /> Verification Detail
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Details Modal */}
-      {selectedInvoice && (
-        <div style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'rgba(0, 0, 0, 0.75)',
-          backdropFilter: 'blur(8px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 100,
-          padding: '24px'
-        }}>
-          <div className="glass-panel" style={{ width: '100%', maxWidth: '600px', padding: '32px', border: '1px solid rgba(255, 255, 255, 0.15)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-              <h3 style={{ fontSize: '1.2rem', fontWeight: 700 }} className="font-mono">
-                Invoice Details: {selectedInvoice.invoice_number}
-              </h3>
-              <button className="btn-secondary" style={{ padding: '4px 10px' }} onClick={() => setSelectedInvoice(null)}>✕</button>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
-              <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '12px', borderRadius: '8px' }}>
-                <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>VENDOR</div>
-                <div style={{ fontWeight: 600, marginTop: '2px' }}>{selectedInvoice.vendor_name}</div>
-              </div>
-              <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '12px', borderRadius: '8px' }}>
-                <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>TOTAL AMOUNT</div>
-                <div style={{ fontWeight: 700, color: '#818cf8', marginTop: '2px' }}>${(selectedInvoice.total_amount || 0).toFixed(2)}</div>
-              </div>
-            </div>
-
-            <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: '16px' }}>LINE ITEMS</div>
-            <div style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '14px', borderRadius: '8px', marginBottom: '20px' }}>
-              {selectedInvoice.line_items?.map((item, idx) => (
-                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', padding: '4px 0' }}>
-                  <span>{item.description} (x{item.quantity})</span>
-                  <span style={{ fontWeight: 600 }}>${item.line_total?.toFixed(2)}</span>
-                </div>
-              ))}
-            </div>
-
-            <button className="btn-primary" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setSelectedInvoice(null)}>
-              Close Detail View
-            </button>
-          </div>
+      {/* Loading State */}
+      {loading && invoices.length === 0 && (
+        <div className="glass-panel" style={{ padding: '48px', textAlign: 'center' }}>
+          <div className="animate-spin" style={{ width: '32px', height: '32px', border: '3px solid rgba(99,102,241,0.2)', borderTopColor: '#6366f1', borderRadius: '50%', margin: '0 auto 12px' }} />
+          <p style={{ color: '#94a3b8' }}>Loading invoice records from MySQL database...</p>
         </div>
       )}
+
+      {/* Empty State */}
+      {filteredInvoices.length === 0 && !loading && (
+        <div className="glass-panel" style={{ padding: '48px', textAlign: 'center' }}>
+          <FileText size={36} color="#64748b" style={{ marginBottom: '12px' }} />
+          <p style={{ color: '#94a3b8', fontSize: '0.95rem' }}>No processed invoices match your filter criteria.</p>
+        </div>
+      )}
+
+      {/* VIEW MODE 1: EXECUTIVE CARD GRID */}
+      {viewMode === 'cards' && filteredInvoices.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '20px' }}>
+          {filteredInvoices.map((inv) => (
+            <div
+              key={inv.id}
+              className="glass-panel table-row-hover"
+              style={{
+                padding: '22px',
+                borderRadius: '16px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                gap: '16px',
+                cursor: 'pointer',
+                border: '1px solid rgba(255, 255, 255, 0.08)'
+              }}
+              onClick={() => onSelectInvoice && onSelectInvoice(inv.id)}
+            >
+              {/* Card Header: Invoice # & Status Badge */}
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                  <span style={{ fontSize: '1rem', fontWeight: 800, color: '#38bdf8' }} className="font-mono">
+                    {inv.invoice_number || `Invoice #${inv.id}`}
+                  </span>
+                  <span className={inv.status === 'APPROVED' ? 'badge badge-success' : inv.status === 'NEEDS_REVIEW' ? 'badge badge-warning' : 'badge badge-danger'}>
+                    {inv.status === 'APPROVED' ? <CheckCircle2 size={12} /> : inv.status === 'NEEDS_REVIEW' ? <ShieldAlert size={12} /> : <XCircle size={12} />}
+                    {inv.status}
+                  </span>
+                </div>
+
+                {/* Vendor Name */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#e2e8f0', fontSize: '0.88rem', fontWeight: 600, marginBottom: '6px' }}>
+                  <Building2 size={16} color="#94a3b8" />
+                  <span>{inv.vendor_name || 'Unassigned Vendor'}</span>
+                </div>
+
+                {/* Purchase Order Badge */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8', fontSize: '0.8rem' }}>
+                  <ShoppingBag size={14} color="#818cf8" />
+                  <span>PO Reference: <strong style={{ color: inv.po_number ? '#818cf8' : '#64748b' }}>{inv.po_number || 'None'}</strong></span>
+                </div>
+              </div>
+
+              {/* Card Footer: Financial Total & Inspect Detail Action Button */}
+              <div style={{ paddingTop: '14px', borderTop: '1px solid rgba(255, 255, 255, 0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <span style={{ fontSize: '0.72rem', color: '#94a3b8', display: 'block' }}>TOTAL AMOUNT</span>
+                  <span style={{ fontSize: '1.35rem', fontWeight: 800, color: '#4ade80' }}>
+                    ${inv.total_amount ? Number(inv.total_amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                  </span>
+                </div>
+
+                <button
+                  className="btn-secondary"
+                  style={{ padding: '8px 14px', fontSize: '0.8rem', background: 'rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99, 102, 241, 0.3)', color: '#818cf8' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelectInvoice && onSelectInvoice(inv.id);
+                  }}
+                >
+                  <Eye size={14} /> Verification Detail
+                </button>
+              </div>
+
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* VIEW MODE 2: CLASSIC TABLE VIEW */}
+      {viewMode === 'table' && filteredInvoices.length > 0 && (
+        <div className="glass-panel" style={{ padding: '24px', overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)', color: '#94a3b8', fontSize: '0.75rem' }} className="font-mono">
+                <th style={{ padding: '12px 16px' }}>ID</th>
+                <th style={{ padding: '12px 16px' }}>INVOICE #</th>
+                <th style={{ padding: '12px 16px' }}>VENDOR</th>
+                <th style={{ padding: '12px 16px' }}>PO NUMBER</th>
+                <th style={{ padding: '12px 16px' }}>TOTAL</th>
+                <th style={{ padding: '12px 16px' }}>STATUS</th>
+                <th style={{ padding: '12px 16px', textAlign: 'right' }}>ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredInvoices.map((inv) => (
+                <tr
+                  key={inv.id}
+                  style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.04)', cursor: 'pointer' }}
+                  className="table-row-hover"
+                  onClick={() => onSelectInvoice && onSelectInvoice(inv.id)}
+                >
+                  <td style={{ padding: '14px 16px', color: '#64748b' }}>{inv.id}</td>
+                  <td style={{ padding: '14px 16px', fontWeight: 700, color: '#38bdf8' }} className="font-mono">{inv.invoice_number || `Invoice #${inv.id}`}</td>
+                  <td style={{ padding: '14px 16px', color: '#e2e8f0' }}>{inv.vendor_name || 'Unassigned Vendor'}</td>
+                  <td style={{ padding: '14px 16px', color: '#94a3b8' }}>{inv.po_number || 'NONE'}</td>
+                  <td style={{ padding: '14px 16px', fontWeight: 800, color: '#4ade80' }}>
+                    ${inv.total_amount ? Number(inv.total_amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                  </td>
+                  <td style={{ padding: '14px 16px' }}>
+                    <span className={inv.status === 'APPROVED' ? 'badge badge-success' : inv.status === 'NEEDS_REVIEW' ? 'badge badge-warning' : 'badge badge-danger'}>
+                      {inv.status}
+                    </span>
+                  </td>
+                  <td style={{ padding: '14px 16px', textAlign: 'right' }}>
+                    <button
+                      className="btn-secondary"
+                      style={{ padding: '6px 12px', fontSize: '0.75rem' }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelectInvoice && onSelectInvoice(inv.id);
+                      }}
+                    >
+                      <Eye size={12} /> Verification Detail
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
     </div>
   );
 }
