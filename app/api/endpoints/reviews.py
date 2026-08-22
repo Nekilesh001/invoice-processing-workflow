@@ -84,13 +84,18 @@ def list_review_tasks(
     return results
 
 
+from app.database.models import InvoiceModel, ReviewTaskModel, ReviewActionModel
+from app.schemas.review import ReviewActionRequest, ReviewActionResponse
+
+
 @router.post("/{task_id}/approve", response_model=Dict[str, Any])
 def approve_review_task(
     task_id: int,
+    payload: Optional[ReviewActionRequest] = None,
     db: Session = Depends(get_db)
 ):
     """
-    Human Reviewer manual approval: updates review task status to APPROVED and sets invoice status to APPROVED.
+    Human Reviewer manual approval: transactionally updates review task to APPROVED, invoice to APPROVED, and records review decision history.
     """
     task = db.query(ReviewTaskModel).filter(ReviewTaskModel.id == task_id).first()
     if not task:
@@ -99,15 +104,41 @@ def approve_review_task(
             detail=f"Review task #{task_id} not found."
         )
 
+    if task.status != "PENDING":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Review task #{task_id} has already been closed with status {task.status}."
+        )
+
+    reviewer_name = payload.reviewer if (payload and payload.reviewer) else "Finance Reviewer"
+    comment = payload.get_effective_comment() if payload else None
+
+    previous_status = task.invoice.status if task.invoice else "NEEDS_REVIEW"
+    new_status = "APPROVED"
+
     task.status = "APPROVED"
     if task.invoice:
-        task.invoice.status = "APPROVED"
+        task.invoice.status = new_status
 
+    action_record = ReviewActionModel(
+        review_task_id=task.id,
+        invoice_id=task.invoice_id,
+        action="APPROVED",
+        previous_invoice_status=previous_status,
+        new_invoice_status=new_status,
+        reviewer_name=reviewer_name,
+        comment=comment
+    )
+    db.add(action_record)
     db.commit()
+
     return {
         "task_id": task.id,
         "invoice_id": task.invoice_id,
         "status": "APPROVED",
+        "action": "APPROVED",
+        "reviewer": reviewer_name,
+        "comment": comment,
         "message": f"Review task #{task_id} approved. Invoice #{task.invoice_id} status updated to APPROVED."
     }
 
@@ -115,10 +146,11 @@ def approve_review_task(
 @router.post("/{task_id}/reject", response_model=Dict[str, Any])
 def reject_review_task(
     task_id: int,
+    payload: Optional[ReviewActionRequest] = None,
     db: Session = Depends(get_db)
 ):
     """
-    Human Reviewer manual rejection: updates review task status to REJECTED and sets invoice status to REJECTED.
+    Human Reviewer manual rejection: requires mandatory comment, transactionally updates task & invoice status to REJECTED, and records review decision history.
     """
     task = db.query(ReviewTaskModel).filter(ReviewTaskModel.id == task_id).first()
     if not task:
@@ -127,14 +159,45 @@ def reject_review_task(
             detail=f"Review task #{task_id} not found."
         )
 
+    if task.status != "PENDING":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Review task #{task_id} has already been closed with status {task.status}."
+        )
+
+    comment = payload.get_effective_comment() if payload else None
+    if not comment:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Reviewer comment is required when rejecting an invoice."
+        )
+
+    reviewer_name = payload.reviewer if (payload and payload.reviewer) else "Finance Reviewer"
+    previous_status = task.invoice.status if task.invoice else "NEEDS_REVIEW"
+    new_status = "REJECTED"
+
     task.status = "REJECTED"
     if task.invoice:
-        task.invoice.status = "REJECTED"
+        task.invoice.status = new_status
 
+    action_record = ReviewActionModel(
+        review_task_id=task.id,
+        invoice_id=task.invoice_id,
+        action="REJECTED",
+        previous_invoice_status=previous_status,
+        new_invoice_status=new_status,
+        reviewer_name=reviewer_name,
+        comment=comment
+    )
+    db.add(action_record)
     db.commit()
+
     return {
         "task_id": task.id,
         "invoice_id": task.invoice_id,
         "status": "REJECTED",
+        "action": "REJECTED",
+        "reviewer": reviewer_name,
+        "comment": comment,
         "message": f"Review task #{task_id} rejected. Invoice #{task.invoice_id} status updated to REJECTED."
     }

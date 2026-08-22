@@ -82,6 +82,7 @@ class InvoiceModel(Base):
     line_items = relationship("InvoiceLineItemModel", back_populates="invoice", cascade="all, delete-orphan")
     validation_records = relationship("ValidationRecordModel", back_populates="invoice", cascade="all, delete-orphan")
     review_tasks = relationship("ReviewTaskModel", back_populates="invoice", cascade="all, delete-orphan")
+    review_actions = relationship("ReviewActionModel", back_populates="invoice", cascade="all, delete-orphan", order_by="desc(ReviewActionModel.created_at), desc(ReviewActionModel.id)")
 
     __table_args__ = (
         Index("idx_vendor_invoice_num", "vendor_id", "invoice_number"),
@@ -146,6 +147,25 @@ class ReviewTaskModel(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     invoice = relationship("InvoiceModel", back_populates="review_tasks")
+    review_actions = relationship("ReviewActionModel", back_populates="review_task")
+
+
+class ReviewActionModel(Base):
+    """Audit log of human review decisions, comments, and status transitions."""
+    __tablename__ = "review_actions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    review_task_id = Column(Integer, ForeignKey("review_tasks.id", ondelete="SET NULL"), nullable=True, index=True)
+    invoice_id = Column(Integer, ForeignKey("invoices.id", ondelete="CASCADE"), nullable=False, index=True)
+    action = Column(String(50), nullable=False)  # APPROVED, REJECTED
+    previous_invoice_status = Column(String(50), nullable=False)
+    new_invoice_status = Column(String(50), nullable=False)
+    reviewer_name = Column(String(100), default="Finance Reviewer", nullable=False)
+    comment = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    invoice = relationship("InvoiceModel", back_populates="review_actions")
+    review_task = relationship("ReviewTaskModel", back_populates="review_actions")
 
 
 class PurchaseOrderModel(Base):

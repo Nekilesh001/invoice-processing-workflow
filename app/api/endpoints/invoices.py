@@ -256,6 +256,20 @@ def get_invoice_detail(
         ReviewTaskModel.status == "PENDING"
     ).first()
 
+    # Fetch review actions (history)
+    review_actions_data = [
+        {
+            "id": act.id,
+            "action": act.action,
+            "reviewer": act.reviewer_name,
+            "comment": act.comment,
+            "previous_status": act.previous_invoice_status,
+            "new_status": act.new_invoice_status,
+            "created_at": act.created_at.isoformat() if act.created_at else None
+        }
+        for act in inv.review_actions
+    ]
+
     return {
         "id": inv.id,
         "invoice_number": inv.invoice_number,
@@ -285,8 +299,39 @@ def get_invoice_detail(
             "reason": review_task.reason,
             "status": review_task.status
         } if review_task else None,
+        "review_history": review_actions_data,
         "created_at": inv.created_at.isoformat() if inv.created_at else None
     }
+
+
+@router.get("/{invoice_id}/review-history", response_model=List[Dict[str, Any]])
+def get_invoice_review_history(
+    invoice_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Retrieve chronological audit trail of human review decisions and comments for a specific invoice.
+    """
+    repo = InvoiceRepository()
+    inv = repo.get_by_id(session=db, invoice_id=invoice_id)
+    if not inv:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Invoice #{invoice_id} not found."
+        )
+
+    results = []
+    for act in inv.review_actions:
+        results.append({
+            "id": act.id,
+            "action": act.action,
+            "reviewer": act.reviewer_name,
+            "comment": act.comment,
+            "previous_status": act.previous_invoice_status,
+            "new_status": act.new_invoice_status,
+            "created_at": act.created_at.isoformat() if act.created_at else None
+        })
+    return results
 
 
 @router.get("/{invoice_id}/pdf")

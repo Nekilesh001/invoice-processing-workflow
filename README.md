@@ -23,6 +23,7 @@ Inspired by the **Agentic AI course from DeepLearning.AI by Andrew Ng**, this pl
 - **Idempotent DB Seeder**: Database seeder script (`scripts/seed_database.py`) populating synthetic master vendors and purchase orders into MySQL without data duplication.
 - **Vendor Management Screen**: Searchable master vendor registry view displaying tax IDs, registration numbers, approved status, total PO count, billed invoice count, contact info, and related invoices history.
 - **Purchase Order Management Screen**: Enterprise PO inspection dashboard supporting search, status filters (`APPROVED`, `EXHAUSTED`, `CANCELLED`), authorized limit total vs remaining balance tracking, line items table, and associated billed invoices.
+- **Human Review & Decision History**: Auditable accounts payable review workflow recording reviewer identity, mandatory rejection notes, timestamped decision audit logs (`review_actions`), and status transitions (`NEEDS_REVIEW → APPROVED / REJECTED`).
 - **CLI & Evaluation Framework**: Command-line pipeline runner and benchmark evaluation suite measuring extraction accuracy, OCR trigger rate, and latency.
 
 ---

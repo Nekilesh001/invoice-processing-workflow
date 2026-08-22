@@ -9,7 +9,10 @@ export default function InvoiceDetailView({ invoiceId, onBack, onStatusUpdated }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [reviewerName, setReviewerName] = useState('Finance Reviewer');
   const [reviewerComment, setReviewerComment] = useState('');
+  const [showConfirmModal, setShowConfirmModal] = useState(null); // 'approve' | 'reject' | null
+  const [commentError, setCommentError] = useState(null);
   const [showAuditTrail, setShowAuditTrail] = useState(false);
 
   const fetchInvoiceDetail = async () => {
@@ -37,7 +40,14 @@ export default function InvoiceDetailView({ invoiceId, onBack, onStatusUpdated }
 
   const handleReviewAction = async (actionType) => {
     if (!data || !data.review_task) return;
+
+    if (actionType === 'reject' && (!reviewerComment || !reviewerComment.trim())) {
+      setCommentError('Reviewer comment is required when rejecting an invoice.');
+      return;
+    }
+    setCommentError(null);
     setActionLoading(true);
+
     try {
       const endpoint = actionType === 'approve'
         ? `/api/v1/reviews/${data.review_task.id}/approve`
@@ -46,17 +56,23 @@ export default function InvoiceDetailView({ invoiceId, onBack, onStatusUpdated }
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reviewer: 'Financial Analyst', notes: reviewerComment })
+        body: JSON.stringify({
+          reviewer: reviewerName.trim() || 'Finance Reviewer',
+          comment: reviewerComment.trim()
+        })
       });
 
       if (!res.ok) {
-        throw new Error(`Failed to ${actionType} invoice`);
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.detail || `Failed to ${actionType} invoice`);
       }
 
+      setShowConfirmModal(null);
+      setReviewerComment('');
       await fetchInvoiceDetail();
       if (onStatusUpdated) onStatusUpdated();
     } catch (err) {
-      alert(`Action failed: ${err.message}`);
+      setCommentError(err.message);
     } finally {
       setActionLoading(false);
     }
@@ -132,7 +148,7 @@ export default function InvoiceDetailView({ invoiceId, onBack, onStatusUpdated }
             <button
               className="btn-success"
               disabled={actionLoading}
-              onClick={() => handleReviewAction('approve')}
+              onClick={() => { setCommentError(null); setShowConfirmModal('approve'); }}
               style={{ padding: '10px 20px', fontSize: '0.88rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', background: '#16a34a', color: '#ffffff', border: 'none', borderRadius: '10px', cursor: 'pointer' }}
             >
               <Check size={18} /> Approve Invoice
@@ -140,7 +156,7 @@ export default function InvoiceDetailView({ invoiceId, onBack, onStatusUpdated }
             <button
               className="btn-danger"
               disabled={actionLoading}
-              onClick={() => handleReviewAction('reject')}
+              onClick={() => { setCommentError(null); setShowConfirmModal('reject'); }}
               style={{ padding: '10px 20px', fontSize: '0.88rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', background: '#dc2626', color: '#ffffff', border: 'none', borderRadius: '10px', cursor: 'pointer' }}
             >
               <X size={18} /> Reject Invoice
@@ -148,6 +164,118 @@ export default function InvoiceDetailView({ invoiceId, onBack, onStatusUpdated }
           </div>
         )}
       </div>
+
+      {/* Confirmation Modal */}
+      {showConfirmModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 1000,
+          background: 'rgba(0, 0, 0, 0.75)',
+          backdropFilter: 'blur(6px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '24px'
+        }}>
+          <div className="glass-panel" style={{
+            maxWidth: '520px',
+            width: '100%',
+            padding: '28px',
+            background: '#0f172a',
+            border: `1px solid ${showConfirmModal === 'approve' ? 'rgba(34, 197, 94, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`,
+            borderRadius: '16px',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+          }}>
+            <h3 style={{ fontSize: '1.15rem', fontWeight: 800, marginBottom: '8px', color: showConfirmModal === 'approve' ? '#4ade80' : '#f87171', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {showConfirmModal === 'approve' ? <CheckCircle size={22} /> : <AlertTriangle size={22} />}
+              {showConfirmModal === 'approve' ? 'Confirm Invoice Approval' : 'Confirm Invoice Rejection'}
+            </h3>
+            <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '20px' }}>
+              {showConfirmModal === 'approve'
+                ? 'Approve this invoice and transition database status to APPROVED.'
+                : 'Reject this invoice and transition database status to REJECTED. A comment is required.'}
+            </p>
+
+            {commentError && (
+              <div style={{ padding: '10px 14px', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '8px', color: '#f87171', fontSize: '0.82rem', marginBottom: '16px' }}>
+                {commentError}
+              </div>
+            )}
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '6px' }}>REVIEWER IDENTITY</label>
+              <input
+                type="text"
+                value={reviewerName}
+                onChange={e => setReviewerName(e.target.value)}
+                style={{
+                  width: '100%',
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '8px',
+                  padding: '8px 12px',
+                  color: '#ffffff',
+                  fontSize: '0.85rem',
+                  outline: 'none'
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '6px' }}>
+                REVIEWER COMMENT {showConfirmModal === 'reject' && <span style={{ color: '#f87171' }}>* (Required)</span>}
+              </label>
+              <textarea
+                rows="3"
+                placeholder={showConfirmModal === 'approve' ? 'Optional notes (e.g. Confirmed discrepancy with procurement)' : 'Enter rejection reason (e.g. Quantity mismatch confirmed with buyer)'}
+                value={reviewerComment}
+                onChange={e => setReviewerComment(e.target.value)}
+                style={{
+                  width: '100%',
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '8px',
+                  padding: '10px 12px',
+                  color: '#ffffff',
+                  fontSize: '0.85rem',
+                  outline: 'none',
+                  resize: 'vertical'
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button
+                className="btn-secondary"
+                disabled={actionLoading}
+                onClick={() => { setShowConfirmModal(null); setCommentError(null); }}
+                style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+              >
+                Cancel
+              </button>
+
+              <button
+                className={showConfirmModal === 'approve' ? 'btn-success' : 'btn-danger'}
+                disabled={actionLoading}
+                onClick={() => handleReviewAction(showConfirmModal)}
+                style={{
+                  padding: '8px 18px',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  background: showConfirmModal === 'approve' ? '#16a34a' : '#dc2626',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer'
+                }}
+              >
+                {actionLoading ? 'Processing...' : showConfirmModal === 'approve' ? 'Confirm Approval' : 'Confirm Rejection'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Grid: PDF Preview (Left) vs Business Verification & Details (Right) */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(480px, 1fr))', gap: '24px' }}>
@@ -341,6 +469,69 @@ export default function InvoiceDetailView({ invoiceId, onBack, onStatusUpdated }
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Review Decision History Timeline Panel */}
+      <div className="glass-panel" style={{ padding: '24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <ShieldCheck size={20} color="#818cf8" />
+            <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: 0 }}>Human Review Decision History & Audit Trail</h3>
+          </div>
+          <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+            {(data.review_history || []).length} Decision Record(s)
+          </span>
+        </div>
+
+        {(data.review_history || []).length === 0 ? (
+          <p style={{ color: '#64748b', fontSize: '0.85rem', textAlign: 'center', padding: '16px 0', margin: 0 }}>
+            No human review actions have been taken on this invoice yet.
+          </p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {data.review_history.map((item) => (
+              <div key={item.id} style={{
+                padding: '16px 20px',
+                borderRadius: '12px',
+                background: item.action === 'APPROVED' ? 'rgba(34, 197, 94, 0.06)' : 'rgba(239, 68, 68, 0.06)',
+                border: `1px solid ${item.action === 'APPROVED' ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{
+                      padding: '3px 10px',
+                      borderRadius: '6px',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      background: item.action === 'APPROVED' ? '#16a34a' : '#dc2626',
+                      color: '#ffffff'
+                    }}>
+                      {item.action}
+                    </span>
+                    <strong style={{ fontSize: '0.88rem', color: '#f8fafc' }}>{item.reviewer}</strong>
+                    <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                      ({item.previous_status} → {item.new_status})
+                    </span>
+                  </div>
+
+                  <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
+                    {new Date(item.created_at).toLocaleString()}
+                  </span>
+                </div>
+
+                {item.comment ? (
+                  <p style={{ fontSize: '0.85rem', color: '#e2e8f0', margin: '6px 0 0', fontStyle: 'italic', background: 'rgba(0, 0, 0, 0.2)', padding: '10px 14px', borderRadius: '8px' }}>
+                    "{item.comment}"
+                  </p>
+                ) : (
+                  <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '4px 0 0', fontStyle: 'italic' }}>
+                    No notes provided for approval.
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Collapsible Technical Audit Trail */}
