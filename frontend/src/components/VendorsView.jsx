@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Building2, Search, RefreshCw, ChevronRight, ArrowLeft, ShoppingBag, FileText, CheckCircle2, ShieldCheck, Mail, Phone, MapPin } from 'lucide-react';
+import { Building2, Search, RefreshCw, ChevronRight, ArrowLeft, ShoppingBag, FileText, CheckCircle2, ShieldCheck, Mail, Phone, MapPin, LayoutGrid, List, Eye } from 'lucide-react';
 
 export default function VendorsView({ onSelectVendor, onSelectPo, onSelectInvoice }) {
   const [vendors, setVendors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [viewMode, setViewMode] = useState('cards'); // 'cards' or 'table'
   const [selectedVendorId, setSelectedVendorId] = useState(null);
   const [vendorDetail, setVendorDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -98,60 +99,66 @@ export default function VendorsView({ onSelectVendor, onSelectPo, onSelectInvoic
           </h3>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', fontSize: '0.88rem' }}>
-            <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '12px 16px', borderRadius: '10px' }}>
-              <span style={{ color: '#64748b', fontSize: '0.75rem', display: 'block' }}>Tax Identification Number (TIN)</span>
-              <strong style={{ color: '#38bdf8' }}>{vendorDetail.tax_id || 'N/A'}</strong>
+            <div style={{ background: 'rgba(255,255,255,0.03)', padding: '14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <span style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block' }}>Email Address</span>
+              <span style={{ fontWeight: 600, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                <Mail size={14} /> {vendorDetail.email || 'N/A'}
+              </span>
             </div>
-            <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '12px 16px', borderRadius: '10px' }}>
-              <span style={{ color: '#64748b', fontSize: '0.75rem', display: 'block' }}>Registration Number</span>
-              <strong>{vendorDetail.registration_number || 'N/A'}</strong>
+
+            <div style={{ background: 'rgba(255,255,255,0.03)', padding: '14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <span style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block' }}>Phone Number</span>
+              <span style={{ fontWeight: 600, color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                <Phone size={14} /> {vendorDetail.phone || 'N/A'}
+              </span>
             </div>
-            <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '12px 16px', borderRadius: '10px' }}>
-              <span style={{ color: '#64748b', fontSize: '0.75rem', display: 'block' }}>Official Email</span>
-              <strong style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Mail size={14} color="#94a3b8" /> {vendorDetail.email || 'billing@domain.com'}</strong>
+
+            <div style={{ background: 'rgba(255,255,255,0.03)', padding: '14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <span style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block' }}>Tax Identification (TIN)</span>
+              <span style={{ fontWeight: 700, color: '#34d399', marginTop: '2px', display: 'block' }}>
+                {vendorDetail.tax_id || 'N/A'}
+              </span>
             </div>
-            <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '12px 16px', borderRadius: '10px' }}>
-              <span style={{ color: '#64748b', fontSize: '0.75rem', display: 'block' }}>Phone Contact</span>
-              <strong style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Phone size={14} color="#94a3b8" /> {vendorDetail.phone || '+1 (800) 555-0199'}</strong>
+
+            <div style={{ background: 'rgba(255,255,255,0.03)', padding: '14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <span style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block' }}>Registration Number</span>
+              <span style={{ fontWeight: 600, color: '#e2e8f0', marginTop: '2px', display: 'block' }}>
+                {vendorDetail.registration_number || 'N/A'}
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Master Purchase Orders Table */}
+        {/* Related Purchase Orders */}
         <div className="glass-panel" style={{ padding: '24px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <ShoppingBag size={20} color="#34d399" />
-              <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: 0 }}>Associated Purchase Orders ({vendorDetail.purchase_orders?.length || 0})</h3>
-            </div>
-          </div>
+          <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <ShoppingBag size={18} color="#34d399" /> Associated Enterprise Purchase Orders ({vendorDetail.purchase_orders?.length || 0})
+          </h3>
 
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', textAlign: 'left', color: '#94a3b8' }}>
-                  <th style={{ padding: '12px' }}>PO Number</th>
-                  <th style={{ padding: '12px' }}>PO Date</th>
-                  <th style={{ padding: '12px', textAlign: 'right' }}>Authorized Total</th>
-                  <th style={{ padding: '12px', textAlign: 'right' }}>Remaining Balance</th>
-                  <th style={{ padding: '12px', textAlign: 'center' }}>Status</th>
-                  <th style={{ padding: '12px', textAlign: 'right' }}>Action</th>
+                  <th style={{ padding: '10px 12px' }}>PO NUMBER</th>
+                  <th style={{ padding: '10px 12px' }}>AUTHORIZED TOTAL</th>
+                  <th style={{ padding: '10px 12px' }}>REMAINING BALANCE</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'center' }}>STATUS</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'right' }}>ACTION</th>
                 </tr>
               </thead>
               <tbody>
-                {(vendorDetail.purchase_orders || []).length === 0 ? (
+                {(!vendorDetail.purchase_orders || vendorDetail.purchase_orders.length === 0) ? (
                   <tr>
-                    <td colSpan="6" style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>
-                      No active purchase orders associated with this vendor.
+                    <td colSpan="5" style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>
+                      No purchase orders associated with this vendor.
                     </td>
                   </tr>
                 ) : (
                   vendorDetail.purchase_orders.map(po => (
                     <tr key={po.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }} className="table-row-hover">
                       <td style={{ padding: '12px', fontWeight: 700, color: '#38bdf8' }}>{po.po_number}</td>
-                      <td style={{ padding: '12px' }}>{po.po_date || 'N/A'}</td>
-                      <td style={{ padding: '12px', textAlign: 'right', fontWeight: 700 }}>${po.authorized_total?.toFixed(2)}</td>
-                      <td style={{ padding: '12px', textAlign: 'right', fontWeight: 700, color: '#34d399' }}>${po.remaining_balance?.toFixed(2)}</td>
+                      <td style={{ padding: '12px', fontWeight: 700 }}>${po.authorized_total?.toFixed(2)}</td>
+                      <td style={{ padding: '12px', fontWeight: 700, color: '#34d399' }}>${po.remaining_balance?.toFixed(2)}</td>
                       <td style={{ padding: '12px', textAlign: 'center' }}>
                         <span className={po.status === 'APPROVED' ? 'badge badge-success' : 'badge badge-warning'}>
                           {po.status}
@@ -163,7 +170,7 @@ export default function VendorsView({ onSelectVendor, onSelectPo, onSelectInvoic
                           style={{ padding: '4px 10px', fontSize: '0.75rem' }}
                           onClick={() => onSelectPo && onSelectPo(po.id)}
                         >
-                          View PO
+                          Inspect PO
                         </button>
                       </td>
                     </tr>
@@ -174,29 +181,26 @@ export default function VendorsView({ onSelectVendor, onSelectPo, onSelectInvoic
           </div>
         </div>
 
-        {/* Master Invoices Table */}
+        {/* Related Invoices Billed */}
         <div className="glass-panel" style={{ padding: '24px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <FileText size={20} color="#818cf8" />
-              <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: 0 }}>Vendor Invoice Billed History ({vendorDetail.invoices?.length || 0})</h3>
-            </div>
-          </div>
+          <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <FileText size={18} color="#38bdf8" /> Billed Invoices History ({vendorDetail.invoices?.length || 0})
+          </h3>
 
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', textAlign: 'left', color: '#94a3b8' }}>
-                  <th style={{ padding: '12px' }}>Invoice Number</th>
-                  <th style={{ padding: '12px' }}>Invoice Date</th>
-                  <th style={{ padding: '12px' }}>PO Reference</th>
-                  <th style={{ padding: '12px', textAlign: 'right' }}>Total Billed</th>
-                  <th style={{ padding: '12px', textAlign: 'center' }}>Status</th>
-                  <th style={{ padding: '12px', textAlign: 'right' }}>Action</th>
+                  <th style={{ padding: '10px 12px' }}>INVOICE #</th>
+                  <th style={{ padding: '10px 12px' }}>DATE</th>
+                  <th style={{ padding: '10px 12px' }}>PO REF</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'right' }}>TOTAL</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'center' }}>STATUS</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'right' }}>ACTION</th>
                 </tr>
               </thead>
               <tbody>
-                {(vendorDetail.invoices || []).length === 0 ? (
+                {(!vendorDetail.invoices || vendorDetail.invoices.length === 0) ? (
                   <tr>
                     <td colSpan="6" style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>
                       No invoices billed by this vendor yet.
@@ -236,84 +240,208 @@ export default function VendorsView({ onSelectVendor, onSelectPo, onSelectInvoic
 
   // Vendor List Screen
   return (
-    <div className="glass-panel" style={{ padding: '32px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'rgba(99, 102, 241, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Building2 size={22} color="#818cf8" />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      
+      {/* Header Panel */}
+      <div className="glass-panel" style={{ padding: '24px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'rgba(99, 102, 241, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Building2 size={24} color="#818cf8" />
           </div>
           <div>
-            <h2 style={{ fontSize: '1.2rem', fontWeight: 700 }}>Master Vendors Registry</h2>
-            <p style={{ fontSize: '0.8rem', color: '#94a3b8' }}>SQL-backed billers and verified enterprise suppliers</p>
+            <h2 style={{ fontSize: '1.3rem', fontWeight: 800, margin: 0, color: '#f8fafc' }}>
+              Master Vendors Registry
+            </h2>
+            <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '2px' }}>
+              SQL-backed billers and verified enterprise suppliers
+            </p>
           </div>
         </div>
 
-        <button className="btn-secondary" style={{ padding: '8px 14px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }} onClick={fetchVendors}>
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh
-        </button>
+        {/* Action Controls & View Mode Toggle */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ display: 'flex', background: 'rgba(255, 255, 255, 0.05)', padding: '3px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+            <button
+              className={viewMode === 'cards' ? 'btn-primary' : 'btn-secondary'}
+              style={{ padding: '6px 12px', fontSize: '0.78rem', border: 'none' }}
+              onClick={() => setViewMode('cards')}
+            >
+              <LayoutGrid size={14} /> Cards
+            </button>
+            <button
+              className={viewMode === 'table' ? 'btn-primary' : 'btn-secondary'}
+              style={{ padding: '6px 12px', fontSize: '0.78rem', border: 'none' }}
+              onClick={() => setViewMode('table')}
+            >
+              <List size={14} /> Table
+            </button>
+          </div>
+
+          <button className="btn-secondary" style={{ padding: '8px 14px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }} onClick={fetchVendors}>
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh
+          </button>
+        </div>
       </div>
 
-      {/* Search Input */}
-      <div style={{ position: 'relative', marginBottom: '20px' }}>
-        <Search size={18} color="#64748b" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
-        <input
-          type="text"
-          placeholder="Search by vendor name, TIN, or registration number..."
-          value={searchTerm}
-          onChange={e => setSearchTerm(e.target.value)}
-          style={{
-            width: '100%',
-            background: 'rgba(255, 255, 255, 0.03)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: '10px',
-            padding: '10px 14px 10px 42px',
-            color: '#ffffff',
-            fontSize: '0.88rem',
-            outline: 'none'
-          }}
-        />
+      {/* Search Bar */}
+      <div className="glass-panel" style={{ padding: '16px 24px' }}>
+        <div style={{ position: 'relative' }}>
+          <Search size={18} color="#64748b" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
+          <input
+            type="text"
+            placeholder="Search by vendor name, TIN, or registration number..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            style={{
+              width: '100%',
+              background: 'rgba(255, 255, 255, 0.03)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '10px',
+              padding: '10px 14px 10px 42px',
+              color: '#ffffff',
+              fontSize: '0.88rem',
+              outline: 'none'
+            }}
+          />
+        </div>
       </div>
 
-      {/* Vendors Table */}
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)', color: '#94a3b8', fontSize: '0.75rem' }}>
-              <th style={{ padding: '12px 16px' }}>VENDOR NAME</th>
-              <th style={{ padding: '12px 16px' }}>TAX ID (TIN)</th>
-              <th style={{ padding: '12px 16px' }}>STATUS</th>
-              <th style={{ padding: '12px 16px', textAlign: 'center' }}>PURCHASE ORDERS</th>
-              <th style={{ padding: '12px 16px', textAlign: 'center' }}>INVOICES BILLED</th>
-              <th style={{ padding: '12px 16px', textAlign: 'right' }}>ACTION</th>
-            </tr>
-          </thead>
-          <tbody>
-            {vendors.length === 0 && !loading && (
-              <tr>
-                <td colSpan="6" style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
-                  No master vendors found matching search query.
-                </td>
+      {/* Loading State */}
+      {loading && vendors.length === 0 && (
+        <div className="glass-panel" style={{ padding: '48px', textAlign: 'center' }}>
+          <div className="animate-spin" style={{ width: '32px', height: '32px', border: '3px solid rgba(99,102,241,0.2)', borderTopColor: '#6366f1', borderRadius: '50%', margin: '0 auto 12px' }} />
+          <p style={{ color: '#94a3b8' }}>Loading vendor registry records...</p>
+        </div>
+      )}
+
+      {/* Empty State */}
+      {vendors.length === 0 && !loading && (
+        <div className="glass-panel" style={{ padding: '48px', textAlign: 'center' }}>
+          <Building2 size={36} color="#64748b" style={{ marginBottom: '12px' }} />
+          <p style={{ color: '#94a3b8', fontSize: '0.95rem' }}>No master vendors found matching your query.</p>
+        </div>
+      )}
+
+      {/* VIEW MODE 1: EXECUTIVE CARD GRID */}
+      {viewMode === 'cards' && vendors.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '20px' }}>
+          {vendors.map((vendor) => (
+            <div
+              key={vendor.id}
+              className="glass-panel table-row-hover"
+              style={{
+                padding: '22px',
+                borderRadius: '16px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                gap: '16px',
+                cursor: 'pointer',
+                border: '1px solid rgba(255, 255, 255, 0.08)'
+              }}
+              onClick={() => handleVendorClick(vendor.id)}
+            >
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ width: '34px', height: '34px', borderRadius: '10px', background: 'rgba(99, 102, 241, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Building2 size={18} color="#818cf8" />
+                    </div>
+                    <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#f8fafc', margin: 0 }}>
+                      {vendor.name}
+                    </h3>
+                  </div>
+
+                  <span className="badge badge-success" style={{ fontSize: '0.7rem' }}>
+                    ✓ APPROVED
+                  </span>
+                </div>
+
+                {/* Tax ID */}
+                <div style={{ fontSize: '0.82rem', color: '#94a3b8', marginBottom: '12px' }}>
+                  Tax Identification (TIN): <strong style={{ color: vendor.tax_id ? '#38bdf8' : '#64748b' }} className="font-mono">{vendor.tax_id || 'N/A'}</strong>
+                </div>
+
+                {/* Metrics Badges */}
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <div style={{ background: 'rgba(255,255,255,0.03)', padding: '8px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', flex: 1 }}>
+                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block' }}>PURCHASE ORDERS</span>
+                    <strong style={{ fontSize: '0.95rem', color: '#e2e8f0' }}>{vendor.po_count} POs</strong>
+                  </div>
+
+                  <div style={{ background: 'rgba(255,255,255,0.03)', padding: '8px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', flex: 1 }}>
+                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block' }}>INVOICES BILLED</span>
+                    <strong style={{ fontSize: '0.95rem', color: '#818cf8' }}>{vendor.invoice_count} Invoices</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Button */}
+              <div style={{ paddingTop: '14px', borderTop: '1px solid rgba(255, 255, 255, 0.06)', display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  className="btn-secondary"
+                  style={{ padding: '8px 14px', fontSize: '0.8rem', background: 'rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99, 102, 241, 0.3)', color: '#818cf8' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleVendorClick(vendor.id);
+                  }}
+                >
+                  View Vendor Profile <ChevronRight size={14} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* VIEW MODE 2: CLASSIC TABLE VIEW */}
+      {viewMode === 'table' && vendors.length > 0 && (
+        <div className="glass-panel" style={{ padding: '24px', overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)', color: '#94a3b8', fontSize: '0.75rem' }} className="font-mono">
+                <th style={{ padding: '12px 16px' }}>VENDOR NAME</th>
+                <th style={{ padding: '12px 16px' }}>TAX ID (TIN)</th>
+                <th style={{ padding: '12px 16px' }}>STATUS</th>
+                <th style={{ padding: '12px 16px' }}>PURCHASE ORDERS</th>
+                <th style={{ padding: '12px 16px' }}>INVOICES BILLED</th>
+                <th style={{ padding: '12px 16px', textAlign: 'right' }}>ACTION</th>
               </tr>
-            )}
-            {vendors.map((v) => (
-              <tr key={v.id} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.04)', cursor: 'pointer' }} className="table-row-hover" onClick={() => handleVendorClick(v.id)}>
-                <td style={{ padding: '14px 16px', fontWeight: 700, color: '#f8fafc' }}>{v.name}</td>
-                <td style={{ padding: '14px 16px', color: '#38bdf8' }} className="font-mono">{v.tax_id || 'N/A'}</td>
-                <td style={{ padding: '14px 16px' }}>
-                  <span className="badge badge-success">✓ APPROVED</span>
-                </td>
-                <td style={{ padding: '14px 16px', textAlign: 'center', fontWeight: 600 }}>{v.purchase_order_count} POs</td>
-                <td style={{ padding: '14px 16px', textAlign: 'center', fontWeight: 600, color: '#818cf8' }}>{v.invoice_count} Invoices</td>
-                <td style={{ padding: '14px 16px', textAlign: 'right' }}>
-                  <button className="btn-secondary" style={{ padding: '6px 12px', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                    View Profile <ChevronRight size={14} />
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {vendors.map((vendor) => (
+                <tr
+                  key={vendor.id}
+                  style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.04)', cursor: 'pointer' }}
+                  className="table-row-hover"
+                  onClick={() => handleVendorClick(vendor.id)}
+                >
+                  <td style={{ padding: '14px 16px', fontWeight: 700, color: '#f8fafc' }}>{vendor.name}</td>
+                  <td style={{ padding: '14px 16px', color: '#38bdf8' }} className="font-mono">{vendor.tax_id || 'N/A'}</td>
+                  <td style={{ padding: '14px 16px' }}>
+                    <span className="badge badge-success" style={{ fontSize: '0.7rem' }}>✓ APPROVED</span>
+                  </td>
+                  <td style={{ padding: '14px 16px', fontWeight: 600 }}>{vendor.po_count} POs</td>
+                  <td style={{ padding: '14px 16px', fontWeight: 600, color: '#818cf8' }}>{vendor.invoice_count} Invoices</td>
+                  <td style={{ padding: '14px 16px', textAlign: 'right' }}>
+                    <button
+                      className="btn-secondary"
+                      style={{ padding: '6px 12px', fontSize: '0.75rem' }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleVendorClick(vendor.id);
+                      }}
+                    >
+                      View Profile <ChevronRight size={12} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
     </div>
   );
 }
