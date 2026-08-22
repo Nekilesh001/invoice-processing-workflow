@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   ArrowLeft, FileText, CheckCircle, AlertTriangle, XCircle, ShieldCheck,
-  Building2, Calendar, CreditCard, DollarSign, Layers, Check, X, ChevronDown, ChevronUp, AlertCircle
+  Building2, Calendar, CreditCard, DollarSign, Layers, Check, X, ChevronDown, ChevronUp, AlertCircle, ExternalLink
 } from 'lucide-react';
 
 export default function InvoiceDetailView({ invoiceId, onBack, onStatusUpdated }) {
@@ -282,20 +282,52 @@ export default function InvoiceDetailView({ invoiceId, onBack, onStatusUpdated }
         
         {/* PDF Previewer Pane */}
         <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', height: '100%', minHeight: '650px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <FileText size={20} color="#38bdf8" />
               <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: 0 }}>Invoice Document PDF</h3>
             </div>
-            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{data.source_filename || 'PDF Preview'}</span>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{data.source_filename || 'PDF Preview'}</span>
+              <a
+                href={`/api/v1/invoices/${data.id}/pdf`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-secondary"
+                style={{ padding: '4px 10px', fontSize: '0.75rem', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#38bdf8', borderColor: 'rgba(56,189,248,0.3)' }}
+              >
+                <ExternalLink size={12} /> Open PDF
+              </a>
+            </div>
           </div>
 
-          <div style={{ flex: 1, borderRadius: '12px', overflow: 'hidden', background: '#0f172a', border: '1px solid rgba(255,255,255,0.08)' }}>
-            <iframe
-              src={`/api/v1/invoices/${data.id}/pdf`}
-              title="Invoice PDF Preview"
-              style={{ width: '100%', height: '100%', minHeight: '600px', border: 'none' }}
-            />
+          <div style={{ flex: 1, borderRadius: '12px', overflow: 'hidden', background: '#0f172a', border: '1px solid rgba(255,255,255,0.08)', position: 'relative' }}>
+            <object
+              data={`/api/v1/invoices/${data.id}/pdf#toolbar=0`}
+              type="application/pdf"
+              style={{ width: '100%', height: '100%', minHeight: '600px' }}
+            >
+              <iframe
+                src={`/api/v1/invoices/${data.id}/pdf#toolbar=0`}
+                title="Invoice PDF Preview"
+                style={{ width: '100%', height: '100%', minHeight: '600px', border: 'none' }}
+              >
+                <div style={{ padding: '32px', textAlign: 'center', color: '#94a3b8' }}>
+                  <FileText size={40} color="#38bdf8" style={{ marginBottom: '12px' }} />
+                  <p>Your browser is unable to display PDF inline.</p>
+                  <a
+                    href={`/api/v1/invoices/${data.id}/pdf`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-primary"
+                    style={{ marginTop: '12px', display: 'inline-flex' }}
+                  >
+                    Download / View Document PDF
+                  </a>
+                </div>
+              </iframe>
+            </object>
           </div>
         </div>
 

@@ -388,7 +388,9 @@ def get_invoice_pdf(
     return FileResponse(
         path=pdf_path,
         media_type="application/pdf",
-        filename=inv.source_filename
+        filename=inv.source_filename,
+        content_disposition_type="inline",
+        headers={"Content-Disposition": f'inline; filename="{inv.source_filename}"'}
     )
 
 
