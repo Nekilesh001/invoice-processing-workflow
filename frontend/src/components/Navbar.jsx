@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bot, FileText, CheckCircle2, ShieldAlert, Cpu, Database, Building2, ShoppingBag } from 'lucide-react';
+import { Bot, FileText, CheckCircle2, ShieldAlert, Cpu, Database, Building2, ShoppingBag, LayoutDashboard } from 'lucide-react';
 
 export default function Navbar({ activeTab, setActiveTab, pendingReviewCount, apiOnline }) {
   return (
@@ -27,7 +27,14 @@ export default function Navbar({ activeTab, setActiveTab, pendingReviewCount, ap
         </div>
       </div>
 
-      <nav style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255, 255, 255, 0.03)', padding: '4px', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+      <nav style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(255, 255, 255, 0.03)', padding: '4px', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+        <button
+          className={activeTab === 'dashboard' ? 'btn-primary' : 'btn-secondary'}
+          style={{ padding: '8px 14px', fontSize: '0.85rem', border: 'none' }}
+          onClick={() => setActiveTab('dashboard')}
+        >
+          <LayoutDashboard size={16} /> Dashboard
+        </button>
         <button
           className={activeTab === 'upload' ? 'btn-primary' : 'btn-secondary'}
           style={{ padding: '8px 14px', fontSize: '0.85rem', border: 'none' }}

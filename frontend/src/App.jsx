@@ -8,9 +8,10 @@ import ReviewQueue from './components/ReviewQueue';
 import InvoiceDetailView from './components/InvoiceDetailView';
 import VendorsView from './components/VendorsView';
 import PurchaseOrdersView from './components/PurchaseOrdersView';
+import DashboardView from './components/DashboardView';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('upload');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [lastResult, setLastResult] = useState(null);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState(null);
   const [selectedVendorId, setSelectedVendorId] = useState(null);
@@ -109,6 +110,13 @@ export default function App() {
             />
           ) : (
             <>
+              {activeTab === 'dashboard' && (
+                <DashboardView
+                  onSelectInvoice={handleSelectInvoice}
+                  onNavigateUpload={() => setActiveTab('upload')}
+                />
+              )}
+
               {activeTab === 'upload' && (
                 <InvoiceUpload onProcessingComplete={handleProcessingComplete} />
               )}
