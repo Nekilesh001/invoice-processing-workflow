@@ -96,8 +96,8 @@ Create a `.env` file in the root directory:
 ```ini
 LLM_PROVIDER=openai_compatible
 LLM_MODEL=glm-4.7-flash:latest
-LLM_BASE_URL=http://115.247.148.78:3002/api
-LLM_API_KEY=sk-bec5d009a9b64886851eb3fbe971fa15
+LLM_BASE_URL=https://open.bigmodel.cn/api/paas/v4/
+LLM_API_KEY=your_api_key_here
 
 TESSERACT_CMD=C:\Program Files\Tesseract-OCR\tesseract.exe
 
@@ -105,7 +105,7 @@ DB_HOST=localhost
 DB_PORT=3306
 DB_NAME=invoice_db
 DB_USER=root
-DB_PASSWORD=MyNewPassword@123
+DB_PASSWORD=your_password_here
 ```
 
 ### 4. Run Application & Web Frontend
