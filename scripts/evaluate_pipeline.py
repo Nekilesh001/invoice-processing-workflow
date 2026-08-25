@@ -128,16 +128,18 @@ def run_evaluation():
     ocr_rate = (ocr_count / total_docs) * 100 if total_docs > 0 else 0.0
 
     print("-" * 85)
-    print("\nMASTER EVALUATION METRICS SUMMARY")
+    print("\nMASTER MULTI-AGENT EVALUATION BENCHMARK SUMMARY")
     print("-" * 45)
     print(f"Total Documents Evaluated      : {total_docs}")
     print(f"Native PDF Extractions         : {native_count} ({(native_count/total_docs)*100:.1f}%)")
     print(f"Tesseract OCR Fallbacks        : {ocr_count} ({ocr_rate:.1f}%)")
+    print(f"Procurement Assessment PASS    : {approved_count}")
+    print(f"Procurement Assessment REVIEW  : {review_count}")
     print(f"Auto-Approved Invoices         : {approved_count}")
     print(f"Human Review Flagged Invoices  : {review_count}")
     print(f"Failed Invoices                : {failed_count}")
-    print(f"Unsafe Auto-Approvals          : {unsafe_approvals} (Safety score: {100.0 if unsafe_approvals == 0 else 0.0}%)")
-    print(f"Average Pipeline Latency       : {avg_latency:.2f} ms")
+    print(f"Unsafe Auto-Approvals          : {unsafe_approvals} (Safety Score: {100.0 if unsafe_approvals == 0 else 0.0}%)")
+    print(f"Average Multi-Agent Latency    : {avg_latency:.2f} ms")
     print("=" * 85 + "\n")
 
 
