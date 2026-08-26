@@ -3,6 +3,7 @@ import {
   LayoutDashboard, FileText, CheckCircle2, ShieldAlert, XCircle, RefreshCw,
   DollarSign, TrendingUp, AlertTriangle, ArrowRight, Upload, Clock, UserCheck, Layers, ChevronRight
 } from 'lucide-react';
+import DataAnalystWidget from './DataAnalystWidget';
 
 export default function DashboardView({ onSelectInvoice, onNavigateUpload }) {
   const [summary, setSummary] = useState(null);
@@ -90,6 +91,9 @@ export default function DashboardView({ onSelectInvoice, onNavigateUpload }) {
           </button>
         </div>
       </div>
+
+      {/* Data Analyst AI Assistant Widget */}
+      <DataAnalystWidget />
 
       {/* Empty State Banner */}
       {isDbEmpty ? (

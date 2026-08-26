@@ -149,6 +149,7 @@ def test_case_8_header_total_matches_but_lines_mismatch(po_matching_db_session):
     invoice = ExtractedInvoice(
         invoice_number="INV-2026-QTY-MISMATCH",
         invoice_date=date(2026, 8, 15),
+        due_date=date(2026, 9, 15),
         po_number="PO-8842",
         vendor=VendorInfo(vendor_name="Acme Cloud Solutions Inc."),
         line_items=[

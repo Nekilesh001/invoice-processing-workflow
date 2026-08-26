@@ -38,10 +38,9 @@ class AgentDecision:
 
 class InvoiceAgent:
     """
-    Autonomous AI Agent for Invoice Verification:
-    - Bounded Observe-Reason-Act loop (max 5 iterations)
-    - Dynamic domain tool calling (vendor lookup, PO lookup, PO line matching, duplicate check, total math check)
-    - Fallback deterministic evaluation for offline/unconfigured environments
+    Multi-Agent Invoice Verification Adapter:
+    Wraps InvoiceOrchestrator (ProcurementVerificationAgent + FinancialRiskAgent + ApprovalPolicyEngine)
+    to provide multi-agent verification while preserving backward compatibility with AgentDecision interface.
     """
 
     def __init__(
@@ -50,26 +49,10 @@ class InvoiceAgent:
         max_iterations: int = 5,
         prompt_path: Optional[Path] = None,
     ):
+        from app.agents.orchestrator import InvoiceOrchestrator
         self.llm_client = llm_client or LLMClient()
         self.max_iterations = max_iterations
-        self.prompt_path = prompt_path or (
-            settings.BASE_DIR / "app" / "prompts" / "invoice_agent_v1.txt"
-        )
-        self.system_prompt = self._load_system_prompt()
-
-        self.tool_functions = {
-            "lookup_vendor": lookup_vendor,
-            "lookup_purchase_order": lookup_purchase_order,
-            "compare_invoice_to_purchase_order": compare_invoice_to_purchase_order,
-            "check_duplicate_invoice": check_duplicate_invoice,
-            "validate_invoice_totals": validate_invoice_totals,
-            "create_review_task": create_review_task,
-        }
-
-    def _load_system_prompt(self) -> str:
-        if self.prompt_path.exists():
-            return self.prompt_path.read_text(encoding="utf-8")
-        return "You are an autonomous AI Invoice Verification Agent."
+        self.orchestrator = InvoiceOrchestrator()
 
     def evaluate_and_decide(
         self,
@@ -79,126 +62,37 @@ class InvoiceAgent:
         on_tool_callback: Optional[Any] = None,
     ) -> AgentDecision:
         """
-        Executes bounded Observe-Reason-Act loop (max 5 iterations).
-        Dynamically calls tool functions, observes tool outputs, and arrives at AgentDecision.
+        Executes multi-agent orchestrator processing and maps results to AgentDecision.
         """
-        state = AgentState(
-            extracted_invoice=extracted_invoice,
-            validation_result=validation_result,
-            max_iterations=self.max_iterations,
-        )
-
-        vendor_name = extracted_invoice.vendor.vendor_name if extracted_invoice.vendor else "Unknown"
-        po_number = extracted_invoice.po_number or "None"
-        invoice_number = extracted_invoice.invoice_number or "Unknown"
-        total_amount = extracted_invoice.total_amount or 0.0
-
-        # Build initial prompt messages
-        context_str = (
-            f"INVOICE TO PROCESS:\n"
-            f"- Invoice Number: {invoice_number}\n"
-            f"- Vendor Name   : {vendor_name}\n"
-            f"- PO Number     : {po_number}\n"
-            f"- Total Amount  : ${total_amount}\n"
-            f"- Subtotal      : ${extracted_invoice.subtotal}\n"
-            f"- Tax Amount    : ${extracted_invoice.tax_amount}\n"
-            f"- Validation Status: {'PASSED' if validation_result.is_valid else 'FAILED'}\n"
-        )
-        if validation_result.errors:
-            err_msg = "; ".join(e.message for e in validation_result.errors)
-            context_str += f"- Validation Errors: {err_msg}\n"
-
-        state.messages.append({"role": "system", "content": self.system_prompt})
-        state.messages.append({"role": "user", "content": context_str})
-
-        import uuid
-        run_id = str(uuid.uuid4())[:8]
-
-        logger.info("=== AGENT RUN START [ID: %s] ===", run_id)
-        logger.info("Invoice: %s | Vendor: %s | PO: %s | Total: $%s", invoice_number, vendor_name, po_number, total_amount)
-
-        # Agent Loop
-        while state.iteration_count < state.max_iterations:
-            state.iteration_count += 1
-            logger.info("--- [Run %s] Iteration %d/%d ---", run_id, state.iteration_count, state.max_iterations)
-
-            # Check if LLM client key is configured; if not, execute local tool sequence
-            try:
-                msg_obj = self.llm_client.chat_completion_with_tools(
-                    messages=state.messages, tools=AGENT_TOOLS_SCHEMA
-                )
-                tool_calls = getattr(msg_obj, "tool_calls", None)
-                content = getattr(msg_obj, "content", None)
-            except Exception as e:
-                logger.info("LLM tool call fallback triggered: %s", str(e))
-                tool_calls = None
-                content = None
-
-            # Path A: LLM specified tool calls
-            if tool_calls:
-                for tool_call in tool_calls:
-                    fn_name = tool_call.function.name
-                    fn_args = json.loads(tool_call.function.arguments) if tool_call.function.arguments else {}
-
-                    tool_result = self._execute_tool(fn_name, fn_args, db_session, on_tool_callback=on_tool_callback)
-                    state.executed_tools.append({
-                        "tool": fn_name,
-                        "args": fn_args,
-                        "output": tool_result
-                    })
-
-                    # Evaluate tool observations
-                    decision = self._evaluate_tool_observation(fn_name, tool_result, state)
-                    if decision:
-                        state.final_decision = decision
-                        break
-
-                    # Append assistant tool call and tool response to message history
-                    state.messages.append({
-                        "role": "assistant",
-                        "content": None,
-                        "tool_calls": [
-                            {
-                                "id": tool_call.id,
-                                "type": "function",
-                                "function": {"name": fn_name, "arguments": json.dumps(fn_args)}
-                            }
-                        ]
-                    })
-                    state.messages.append({
-                        "role": "tool",
-                        "tool_call_id": tool_call.id,
-                        "content": json.dumps(tool_result)
-                    })
-
-                if state.final_decision:
-                    break
-
-            # Path B: LLM returned content (or local offline agentic tool reasoning fallback)
-            else:
-                decision = self._execute_fallback_agentic_loop(state, db_session, on_tool_callback=on_tool_callback)
-                state.final_decision = decision
-                break
-
-        # Process final decision or fallback to HUMAN_REVIEW
-        if not state.final_decision:
-            state.final_decision = AgentDecisionSchema(
-                decision="HUMAN_REVIEW",
+        if self.max_iterations <= 0:
+            return AgentDecision(
+                action="HUMAN_REVIEW",
                 reason="MAX_ITERATIONS_EXCEEDED: Agent exceeded max reasoning steps without reaching conclusion.",
-                requires_human_review=True,
                 confidence_score=0.5
             )
+        final_decision, state = self.orchestrator.process_invoice(
+            extracted_invoice=extracted_invoice,
+            validation_result=validation_result,
+            db_session=db_session,
+            on_tool_callback=on_tool_callback
+        )
 
-        logger.info("=== AGENT RUN END [ID: %s] Decision: %s ===", run_id, state.final_decision.decision)
+        executed_tools = []
+        for trace in state.agent_traces:
+            for tool in trace.tools_used:
+                executed_tools.append({"tool": tool, "agent": trace.agent_name})
+
+        proc = state.procurement_assessment
+        risk = state.risk_assessment
 
         return AgentDecision(
-            action=state.final_decision.decision,
-            reason=state.final_decision.reason,
-            executed_tools=state.executed_tools,
-            vendor_verified=state.vendor_verified,
-            po_verified=state.po_verified,
-            duplicate_checked=state.duplicate_checked,
-            confidence_score=state.final_decision.confidence_score
+            action=final_decision.action,
+            reason=final_decision.reason,
+            executed_tools=executed_tools,
+            vendor_verified=proc.vendor_verified if proc else False,
+            po_verified=proc.po_verified if proc else False,
+            duplicate_checked="check_duplicate_invoice" in [t.get("tool") for t in executed_tools],
+            confidence_score=final_decision.confidence_score
         )
 
     def _execute_tool(self, name: str, args: Dict[str, Any], session: Optional[Session], on_tool_callback: Optional[Any] = None) -> Dict[str, Any]:
