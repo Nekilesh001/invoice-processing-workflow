@@ -56,12 +56,9 @@ class FinancialRiskAgent:
 
         # Check 1: Duplicate Invoice Detection
         tools_used.append("check_duplicate_invoice")
-        dup_res = check_duplicate_invoice(
-            vendor_name=vendor_name,
-            invoice_number=invoice_number,
-            session=db_session
-        )
-        tool_results.append({"tool": "check_duplicate_invoice", "output": dup_res})
+        dup_args = {"vendor_name": vendor_name, "invoice_number": invoice_number}
+        dup_res = check_duplicate_invoice(**dup_args, session=db_session)
+        tool_results.append({"tool": "check_duplicate_invoice", "args": dup_args, "output": dup_res})
 
         if dup_res.get("is_duplicate"):
             flags.append("DUPLICATE_INVOICE_SUSPECTED")
@@ -70,8 +67,9 @@ class FinancialRiskAgent:
 
         # Check 2: Invoice Number Pattern Check
         tools_used.append("check_invoice_number_pattern")
-        num_res = check_invoice_number_pattern(invoice_number)
-        tool_results.append({"tool": "check_invoice_number_pattern", "output": num_res})
+        num_args = {"invoice_number": invoice_number}
+        num_res = check_invoice_number_pattern(**num_args)
+        tool_results.append({"tool": "check_invoice_number_pattern", "args": num_args, "output": num_res})
 
         if num_res.get("suspicious"):
             flags.append("SUSPICIOUS_INVOICE_NUMBER")
@@ -80,20 +78,18 @@ class FinancialRiskAgent:
 
         # Check 3: Historical Vendor Activity & Amount Anomaly
         tools_used.append("get_vendor_invoice_history")
-        hist_res = get_vendor_invoice_history(vendor_name, session=db_session)
-        tool_results.append({"tool": "get_vendor_invoice_history", "output": hist_res})
+        hist_args = {"vendor_name": vendor_name}
+        hist_res = get_vendor_invoice_history(**hist_args, session=db_session)
+        tool_results.append({"tool": "get_vendor_invoice_history", "args": hist_args, "output": hist_res})
         evidence.append({"check": "vendor_history", "details": hist_res})
 
         if hist_res.get("data_sufficiency") == "INSUFFICIENT_DATA":
             data_sufficiency = "INSUFFICIENT_DATA"
 
         tools_used.append("check_invoice_amount_anomaly")
-        anomaly_res = check_invoice_amount_anomaly(
-            total_amount=total_amount,
-            vendor_name=vendor_name,
-            session=db_session
-        )
-        tool_results.append({"tool": "check_invoice_amount_anomaly", "output": anomaly_res})
+        anomaly_args = {"total_amount": total_amount, "vendor_name": vendor_name}
+        anomaly_res = check_invoice_amount_anomaly(**anomaly_args, session=db_session)
+        tool_results.append({"tool": "check_invoice_amount_anomaly", "args": anomaly_args, "output": anomaly_res})
 
         if anomaly_res.get("is_anomaly"):
             flags.append(anomaly_res.get("anomaly_type", "UNUSUAL_INVOICE_AMOUNT"))

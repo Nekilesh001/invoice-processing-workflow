@@ -60,7 +60,7 @@ class ProcurementAgent:
         # Step 1: Vendor Verification
         tools_used.append("lookup_vendor")
         vendor_res = lookup_vendor(vendor_name, session=db_session)
-        tool_results.append({"tool": "lookup_vendor", "output": vendor_res})
+        tool_results.append({"tool": "lookup_vendor", "args": {"vendor_name": vendor_name}, "output": vendor_res})
 
         if vendor_res.get("found") and vendor_res.get("status") == "VERIFIED":
             vendor_verified = True
@@ -76,7 +76,7 @@ class ProcurementAgent:
         if po_number and po_number.strip() and po_number.upper() != "NONE":
             tools_used.append("lookup_purchase_order")
             po_res = lookup_purchase_order(po_number, session=db_session)
-            tool_results.append({"tool": "lookup_purchase_order", "output": po_res})
+            tool_results.append({"tool": "lookup_purchase_order", "args": {"po_number": po_number}, "output": po_res})
 
             if po_res.get("found") and po_res.get("status") in ["PO_FOUND", "APPROVED"]:
                 po_verified = True
@@ -98,7 +98,7 @@ class ProcurementAgent:
                         invoice_line_items=raw_line_items,
                         session=db_session
                     )
-                    tool_results.append({"tool": "compare_invoice_to_purchase_order", "output": match_res})
+                    tool_results.append({"tool": "compare_invoice_to_purchase_order", "args": {"po_number": po_number, "line_items_count": len(raw_line_items)}, "output": match_res})
                     evidence.append({"type": "po_line_matching", "details": match_res})
 
                     is_matched = match_res.get("is_match") or match_res.get("matched", False)
@@ -129,14 +129,15 @@ class ProcurementAgent:
 
         # Step 3: Validate Invoice Math Totals
         tools_used.append("validate_invoice_totals")
-        totals_res = validate_invoice_totals(
-            subtotal=float(extracted_invoice.subtotal or 0.0),
-            total_amount=float(extracted_invoice.total_amount or 0.0),
-            tax_amount=float(extracted_invoice.tax_amount or 0.0),
-            shipping_charge=float(extracted_invoice.shipping_charge or 0.0),
-            discount=float(extracted_invoice.discount or 0.0),
-        )
-        tool_results.append({"tool": "validate_invoice_totals", "output": totals_res})
+        totals_args = {
+            "subtotal": float(extracted_invoice.subtotal or 0.0),
+            "total_amount": float(extracted_invoice.total_amount or 0.0),
+            "tax_amount": float(extracted_invoice.tax_amount or 0.0),
+            "shipping_charge": float(extracted_invoice.shipping_charge or 0.0),
+            "discount": float(extracted_invoice.discount or 0.0),
+        }
+        totals_res = validate_invoice_totals(**totals_args)
+        tool_results.append({"tool": "validate_invoice_totals", "args": totals_args, "output": totals_res})
 
         if not totals_res.get("is_valid"):
             issues.append(f"TOTAL_MISMATCH: {totals_res.get('reason')}")

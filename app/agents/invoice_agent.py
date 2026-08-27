@@ -79,8 +79,13 @@ class InvoiceAgent:
 
         executed_tools = []
         for trace in state.agent_traces:
-            for tool in trace.tools_used:
-                executed_tools.append({"tool": tool, "agent": trace.agent_name})
+            for t_item in trace.tool_results:
+                executed_tools.append({
+                    "tool": t_item.get("tool"),
+                    "args": t_item.get("args", {}),
+                    "output": t_item.get("output", {}),
+                    "agent": trace.agent_name
+                })
 
         proc = state.procurement_assessment
         risk = state.risk_assessment
