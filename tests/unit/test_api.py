@@ -78,3 +78,65 @@ def test_list_and_manage_reviews(api_client):
     res = api_client.get("/api/v1/reviews")
     assert res.status_code == 200
     assert isinstance(res.json(), list)
+
+
+def test_review_tasks_date_serialization(api_client):
+    from datetime import date
+    from app.database.connection import get_db
+
+    db = next(app.dependency_overrides[get_db]())
+
+    # 1. Seed invoice WITH dates
+    inv1 = InvoiceModel(
+        invoice_number="INV-DATE-001",
+        invoice_date=date(2026, 8, 15),
+        due_date=date(2026, 9, 15),
+        total_amount=500.00,
+        status="NEEDS_REVIEW"
+    )
+    db.add(inv1)
+    db.flush()
+
+    task1 = ReviewTaskModel(
+        invoice_id=inv1.id,
+        reason="PO_LINE_MISMATCH: Quantity mismatch",
+        status="PENDING"
+    )
+    db.add(task1)
+
+    # 2. Seed invoice WITHOUT dates
+    inv2 = InvoiceModel(
+        invoice_number="INV-NODATE-002",
+        invoice_date=None,
+        due_date=None,
+        total_amount=250.00,
+        status="NEEDS_REVIEW"
+    )
+    db.add(inv2)
+    db.flush()
+
+    task2 = ReviewTaskModel(
+        invoice_id=inv2.id,
+        reason="MISSING_REQUIRED_FIELD: Invoice date missing",
+        status="PENDING"
+    )
+    db.add(task2)
+    db.commit()
+
+    res = api_client.get("/api/v1/reviews?status=PENDING")
+    assert res.status_code == 200
+    data = res.json()
+    assert len(data) >= 2
+
+    task1_json = next(t for t in data if t["invoice_number"] == "INV-DATE-001")
+    assert task1_json["invoice_date"] == "2026-08-15"
+    assert task1_json["due_date"] == "2026-09-15"
+    assert task1_json["raw_json"]["invoice_date"] == "2026-08-15"
+    assert task1_json["raw_json"]["due_date"] == "2026-09-15"
+
+    task2_json = next(t for t in data if t["invoice_number"] == "INV-NODATE-002")
+    assert task2_json["invoice_date"] is None
+    assert task2_json["due_date"] is None
+    assert task2_json["raw_json"]["invoice_date"] is None
+    assert task2_json["raw_json"]["due_date"] is None
+

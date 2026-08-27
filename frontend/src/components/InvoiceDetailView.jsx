@@ -424,7 +424,9 @@ export default function InvoiceDetailView({ invoiceId, user, onBack, onStatusUpd
                   {vendorVerified ? 'Vendor Verified' : 'Unknown Vendor'}
                 </span>
                 <span style={{ fontSize: '0.73rem', color: '#64748b' }}>
-                  {data.po_number ? (isPoMatch ? 'PO Lines Matched' : 'PO Line Mismatch') : 'No PO Reference'}
+                  {data.po_number && data.po_number.trim() && data.po_number.toUpperCase() !== 'NONE'
+                    ? (poMatch.overall_status === 'PO_NOT_FOUND' ? `PO '${data.po_number}' Not Found` : (isPoMatch ? 'PO Lines Matched' : 'PO Line Mismatch'))
+                    : 'No PO Reference'}
                 </span>
               </div>
 
@@ -461,33 +463,58 @@ export default function InvoiceDetailView({ invoiceId, user, onBack, onStatusUpd
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
-              <VerificationItem
-                label="Vendor Verified"
-                passed={vendorVerified}
-                detail={vendorVerified ? `Master Registry: ${data.vendor?.name || ''}` : 'Unknown Vendor'}
-              />
-              <VerificationItem
-                label="Duplicate Check"
-                passed={!duplicateFlagged}
-                detail={duplicateFlagged ? 'Possible duplicate invoice detected' : 'No identical invoice found'}
-              />
-              <VerificationItem
-                label="Calculations Valid"
-                passed={totalsMatch}
-                detail={totalsMatch ? 'Subtotal + Tax = Total' : (procurement?.issues?.find(i => /TOTAL|CALC/i.test(i)) || 'Totals mismatch detected')}
-              />
-              <VerificationItem
-                label="Purchase Order"
-                passed={!!data.po_number && poMatch.overall_status !== 'PO_NOT_FOUND'}
-                detail={data.po_number ? `Verified ${data.po_number}` : 'No PO Reference'}
-              />
-              <VerificationItem
-                label="Line Items Match"
-                passed={isPoMatch}
-                detail={isPoMatch ? 'All lines match PO' : poMatch.reasons?.[0] || 'Line mismatch detected'}
-              />
-            </div>
+            {(() => {
+              const poHasRef = !!data.po_number && data.po_number.trim() !== '' && data.po_number.toUpperCase() !== 'NONE';
+              const poNotFound = poMatch.overall_status === 'PO_NOT_FOUND' || (procurement?.issues || []).some(i => i.includes('PO_NOT_FOUND'));
+              const poCheckPassed = poHasRef && !poNotFound && poMatch.overall_status !== 'ERROR' && procurement?.po_verified !== false;
+
+              let poDetailText = 'No PO Reference';
+              if (poHasRef) {
+                if (poNotFound) {
+                  poDetailText = `PO '${data.po_number}' not found in database`;
+                } else if (['EXHAUSTED', 'CANCELLED', 'CLOSED', 'DRAFT'].includes(poMatch.overall_status)) {
+                  poDetailText = `PO '${data.po_number}' status is ${poMatch.overall_status}`;
+                } else if (poMatch.overall_status === 'TOTAL_MISMATCH' || poMatch.overall_status === 'HEADER_TOTAL_MISMATCH' || (procurement?.issues || []).some(i => i.includes('PO_MISMATCH'))) {
+                  poDetailText = `PO '${data.po_number}' authorized total mismatch`;
+                } else if (poMatch.overall_status === 'ERROR') {
+                  poDetailText = `PO '${data.po_number}' verification error`;
+                } else if (poCheckPassed) {
+                  poDetailText = `Verified ${data.po_number}`;
+                } else {
+                  poDetailText = `PO '${data.po_number}' verification failed`;
+                }
+              }
+
+              return (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+                  <VerificationItem
+                    label="Vendor Verified"
+                    passed={vendorVerified}
+                    detail={vendorVerified ? `Master Registry: ${data.vendor?.name || ''}` : ((procurement?.issues || []).includes('FUZZY_VENDOR_MATCH') ? `Partial match '${data.vendor?.name}' requires review` : 'Unknown Vendor')}
+                  />
+                  <VerificationItem
+                    label="Duplicate Check"
+                    passed={!duplicateFlagged}
+                    detail={duplicateFlagged ? 'Possible duplicate invoice detected' : 'No identical invoice found'}
+                  />
+                  <VerificationItem
+                    label="Calculations Valid"
+                    passed={totalsMatch}
+                    detail={totalsMatch ? 'Subtotal + Tax = Total' : (procurement?.issues?.find(i => /TOTAL|CALC/i.test(i)) || 'Totals mismatch detected')}
+                  />
+                  <VerificationItem
+                    label="Purchase Order"
+                    passed={poCheckPassed}
+                    detail={poDetailText}
+                  />
+                  <VerificationItem
+                    label="Line Items Match"
+                    passed={isPoMatch}
+                    detail={!poHasRef ? 'No PO lines to match' : (isPoMatch ? 'All lines match PO' : poMatch.reasons?.[0] || 'Line mismatch detected')}
+                  />
+                </div>
+              );
+            })()}
           </div>
 
           {/* Invoice Summary Card */}
