@@ -351,14 +351,17 @@ def get_invoice_review_history(
     return results
 
 
+@router.get("/{invoice_id}/document")
 @router.get("/{invoice_id}/pdf")
-def get_invoice_pdf(
+def get_invoice_document(
     invoice_id: int,
     db: Session = Depends(get_db)
 ):
     """
-    Serves the actual uploaded PDF document for inline PDF previewing.
+    Serves the actual uploaded document file (PDF or Image: PNG, JPG, JPEG, TIFF) for inline previewing.
+    Infers MIME type dynamically.
     """
+    import mimetypes
     from fastapi.responses import FileResponse
     from app.config import settings
 
@@ -367,30 +370,46 @@ def get_invoice_pdf(
     if not inv or not inv.source_filename:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Invoice PDF document not found."
+            detail="Invoice document file not found."
         )
 
-    # Check sample invoices directory first, then root uploads
+    filename = inv.source_filename
     sample_dir = settings.BASE_DIR / "data" / "sample_invoices"
-    pdf_path = sample_dir / inv.source_filename
+    doc_path = sample_dir / filename
 
-    if not pdf_path.exists():
-        # Fallback search by filename pattern or return default sample
-        matching = list(sample_dir.glob("*.pdf"))
+    if not doc_path.exists():
+        # Fallback search by filename pattern or return matching file
+        matching = [f for f in sample_dir.glob("*") if f.name.lower() == filename.lower()]
         if matching:
-            pdf_path = matching[0]
+            doc_path = matching[0]
         else:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"PDF file '{inv.source_filename}' missing on server."
-            )
+            # Fallback search by any PDF/Image file
+            any_matching = list(sample_dir.glob("*.pdf")) + list(sample_dir.glob("*.png")) + list(sample_dir.glob("*.jpg"))
+            if any_matching:
+                doc_path = any_matching[0]
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Document file '{filename}' missing on server."
+                )
+
+    # Dynamic MIME type inference
+    mime_type, _ = mimetypes.guess_type(str(doc_path))
+    if not mime_type:
+        ext = doc_path.suffix.lower()
+        if ext in ['.png', '.jpg', '.jpeg']:
+            mime_type = f"image/{ext.replace('.', '')}"
+        elif ext == '.pdf':
+            mime_type = "application/pdf"
+        else:
+            mime_type = "application/octet-stream"
 
     return FileResponse(
-        path=pdf_path,
-        media_type="application/pdf",
-        filename=inv.source_filename,
+        path=doc_path,
+        media_type=mime_type,
+        filename=filename,
         content_disposition_type="inline",
-        headers={"Content-Disposition": f'inline; filename="{inv.source_filename}"'}
+        headers={"Content-Disposition": f'inline; filename="{filename}"'}
     )
 
 

@@ -280,55 +280,82 @@ export default function InvoiceDetailView({ invoiceId, onBack, onStatusUpdated }
       {/* Main Grid: PDF Preview (Left) vs Business Verification & Details (Right) */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(480px, 1fr))', gap: '24px' }}>
         
-        {/* PDF Previewer Pane */}
+        {/* Document Previewer Pane (Image or PDF) */}
         <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', height: '100%', minHeight: '650px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <FileText size={20} color="#38bdf8" />
-              <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: 0 }}>Invoice Document PDF</h3>
-            </div>
+          {(() => {
+            const isImg = data.source_filename && (
+              data.source_filename.toLowerCase().endsWith('.png') ||
+              data.source_filename.toLowerCase().endsWith('.jpg') ||
+              data.source_filename.toLowerCase().endsWith('.jpeg') ||
+              data.source_filename.toLowerCase().endsWith('.tiff') ||
+              data.source_filename.toLowerCase().endsWith('.webp')
+            );
+            const docUrl = `/api/v1/invoices/${data.id}/document`;
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{data.source_filename || 'PDF Preview'}</span>
-              <a
-                href={`/api/v1/invoices/${data.id}/pdf`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn-secondary"
-                style={{ padding: '4px 10px', fontSize: '0.75rem', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#38bdf8', borderColor: 'rgba(56,189,248,0.3)' }}
-              >
-                <ExternalLink size={12} /> Open PDF
-              </a>
-            </div>
-          </div>
+            return (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <FileText size={20} color="#38bdf8" />
+                    <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: 0 }}>
+                      Invoice Document {isImg ? 'Image' : 'PDF'}
+                    </h3>
+                  </div>
 
-          <div style={{ flex: 1, borderRadius: '12px', overflow: 'hidden', background: '#0f172a', border: '1px solid rgba(255,255,255,0.08)', position: 'relative' }}>
-            <object
-              data={`/api/v1/invoices/${data.id}/pdf#toolbar=0`}
-              type="application/pdf"
-              style={{ width: '100%', height: '100%', minHeight: '600px' }}
-            >
-              <iframe
-                src={`/api/v1/invoices/${data.id}/pdf#toolbar=0`}
-                title="Invoice PDF Preview"
-                style={{ width: '100%', height: '100%', minHeight: '600px', border: 'none' }}
-              >
-                <div style={{ padding: '32px', textAlign: 'center', color: '#94a3b8' }}>
-                  <FileText size={40} color="#38bdf8" style={{ marginBottom: '12px' }} />
-                  <p>Your browser is unable to display PDF inline.</p>
-                  <a
-                    href={`/api/v1/invoices/${data.id}/pdf`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn-primary"
-                    style={{ marginTop: '12px', display: 'inline-flex' }}
-                  >
-                    Download / View Document PDF
-                  </a>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{data.source_filename || 'Document Preview'}</span>
+                    <a
+                      href={docUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-secondary"
+                      style={{ padding: '4px 10px', fontSize: '0.75rem', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#38bdf8', borderColor: 'rgba(56,189,248,0.3)' }}
+                    >
+                      <ExternalLink size={12} /> {isImg ? 'Open Image' : 'Open PDF'}
+                    </a>
+                  </div>
                 </div>
-              </iframe>
-            </object>
-          </div>
+
+                <div style={{ flex: 1, borderRadius: '12px', overflow: 'hidden', background: '#0f172a', border: '1px solid rgba(255,255,255,0.08)', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {isImg ? (
+                    <div style={{ width: '100%', height: '100%', minHeight: '600px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', background: '#090d16' }}>
+                      <img
+                        src={docUrl}
+                        alt={data.source_filename || "Invoice Document Image"}
+                        style={{ maxWidth: '100%', maxHeight: '600px', objectFit: 'contain', borderRadius: '8px', boxShadow: '0 8px 30px rgba(0,0,0,0.6)' }}
+                      />
+                    </div>
+                  ) : (
+                    <object
+                      data={`${docUrl}#toolbar=0`}
+                      type="application/pdf"
+                      style={{ width: '100%', height: '100%', minHeight: '600px' }}
+                    >
+                      <iframe
+                        src={`${docUrl}#toolbar=0`}
+                        title="Invoice PDF Preview"
+                        style={{ width: '100%', height: '100%', minHeight: '600px', border: 'none' }}
+                      >
+                        <div style={{ padding: '32px', textAlign: 'center', color: '#94a3b8' }}>
+                          <FileText size={40} color="#38bdf8" style={{ marginBottom: '12px' }} />
+                          <p>Your browser is unable to display PDF inline.</p>
+                          <a
+                            href={docUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn-primary"
+                            style={{ marginTop: '12px', display: 'inline-flex' }}
+                          >
+                            Download / View Document PDF
+                          </a>
+                        </div>
+                      </iframe>
+                    </object>
+                  )}
+                </div>
+              </>
+            );
+          })()}
         </div>
 
         {/* Verification Summary & Extracted Financials Pane */}

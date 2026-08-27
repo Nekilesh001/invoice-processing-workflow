@@ -8,6 +8,7 @@ from sqlalchemy import (
     DateTime,
     Boolean,
     Text,
+    JSON,
     ForeignKey,
     Index,
     UniqueConstraint
@@ -234,4 +235,17 @@ class PurchaseOrderLineItemModel(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     purchase_order = relationship("PurchaseOrderModel", back_populates="line_items")
+
+
+class AnalystQueryModel(Base):
+    """Database audit storage for natural language Data Analyst Assistant Q&A history."""
+    __tablename__ = "analyst_queries"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    question = Column(Text, nullable=False)
+    answer = Column(Text, nullable=False)
+    tools_used = Column(JSON, nullable=True)
+    sources = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 

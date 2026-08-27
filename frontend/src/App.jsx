@@ -83,9 +83,9 @@ export default function App() {
   };
 
   const handleTabChange = (tabKey) => {
-    if (tabKey !== 'detail') {
-      setSelectedInvoiceId(null);
-    }
+    setSelectedInvoiceId(null);
+    setSelectedVendorId(null);
+    setSelectedPoId(null);
     setActiveTab(tabKey);
   };
 

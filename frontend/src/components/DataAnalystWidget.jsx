@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
-import { Bot, Sparkles, Send, CheckCircle2, Database, AlertCircle, HelpCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Bot, Sparkles, Send, CheckCircle2, Database, AlertCircle, HelpCircle, Trash2, Clock } from 'lucide-react';
 
 export default function DataAnalystWidget() {
   const [question, setQuestion] = useState('');
   const [loading, setLoading] = useState(false);
-  const [response, setResponse] = useState(null);
+  const [history, setHistory] = useState([]);
   const [error, setError] = useState('');
 
   const sampleQueries = [
@@ -14,13 +14,46 @@ export default function DataAnalystWidget() {
     "How much invoice value was rejected this month?"
   ];
 
+  // Load chat history from backend database and localStorage fallback
+  const fetchHistory = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/v1/analytics/history', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          setHistory(data);
+          localStorage.setItem('analyst_chat_history', JSON.stringify(data));
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to load history from DB endpoint, falling back to LocalStorage', err);
+    }
+
+    // Fallback to LocalStorage
+    const saved = localStorage.getItem('analyst_chat_history');
+    if (saved) {
+      try {
+        setHistory(JSON.parse(saved));
+      } catch (e) {
+        console.error('LocalStorage parse error', e);
+      }
+    }
+  };
+
+  useEffect(() => {
+    fetchHistory();
+  }, []);
+
   const handleAsk = async (queryText) => {
     const q = queryText || question;
     if (!q || !q.trim()) return;
 
     setLoading(true);
     setError('');
-    setResponse(null);
 
     try {
       const token = localStorage.getItem('token');
@@ -30,7 +63,7 @@ export default function DataAnalystWidget() {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
-        body: JSON.stringify({ question: q })
+        body: JSON.stringify({ question: q.trim() })
       });
 
       const data = await res.json();
@@ -38,7 +71,19 @@ export default function DataAnalystWidget() {
         throw new Error(data.detail || 'Data Analyst query failed.');
       }
 
-      setResponse(data);
+      const newRecord = {
+        id: Date.now(),
+        question: q.trim(),
+        answer: data.answer,
+        tools_used: data.tools_used || [],
+        sources: data.sources || [],
+        created_at: new Date().toISOString()
+      };
+
+      const updated = [...history, newRecord];
+      setHistory(updated);
+      localStorage.setItem('analyst_chat_history', JSON.stringify(updated));
+      setQuestion('');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -46,9 +91,23 @@ export default function DataAnalystWidget() {
     }
   };
 
+  const handleClearHistory = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      await fetch('/api/v1/analytics/history', {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+    } catch (e) {
+      console.warn('Backend history clear failed', e);
+    }
+    setHistory([]);
+    localStorage.removeItem('analyst_chat_history');
+  };
+
   return (
     <div className="glass-panel" style={{ padding: '24px', borderRadius: '16px', marginBottom: '28px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{
             width: '40px',
@@ -71,9 +130,21 @@ export default function DataAnalystWidget() {
             </span>
           </div>
         </div>
-        <span className="badge badge-info" style={{ fontSize: '0.7rem' }}>
-          Read-Only DB Tools
-        </span>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {history.length > 0 && (
+            <button
+              onClick={handleClearHistory}
+              className="btn-secondary"
+              style={{ padding: '4px 10px', fontSize: '0.75rem', color: '#f87171', borderColor: 'rgba(239, 68, 68, 0.3)', display: 'flex', alignItems: 'center', gap: '4px' }}
+            >
+              <Trash2 size={12} /> Clear History
+            </button>
+          )}
+          <span className="badge badge-info" style={{ fontSize: '0.7rem' }}>
+            Read-Only DB Tools
+          </span>
+        </div>
       </div>
 
       {/* Sample Query Pills */}
@@ -139,46 +210,64 @@ export default function DataAnalystWidget() {
           fontSize: '0.85rem',
           display: 'flex',
           alignItems: 'center',
-          gap: '8px'
+          gap: '8px',
+          marginBottom: '16px'
         }}>
           <AlertCircle size={16} />
           <span>{error}</span>
         </div>
       )}
 
-      {/* Answer Response Card */}
-      {response && (
-        <div style={{
-          padding: '18px 20px',
-          borderRadius: '12px',
-          background: 'rgba(99, 102, 241, 0.08)',
-          border: '1px solid rgba(99, 102, 241, 0.2)',
-          marginTop: '12px'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-            <CheckCircle2 size={18} color="#818cf8" />
-            <h4 style={{ fontSize: '0.9rem', fontWeight: 700, color: '#f8fafc', margin: 0 }}>
-              Analyst Response
-            </h4>
-          </div>
+      {/* Chronological Chat History List */}
+      {history.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', maxHeight: '400px', overflowY: 'auto', paddingRight: '4px' }}>
+          {history.slice().reverse().map((item, idx) => (
+            <div
+              key={item.id || idx}
+              style={{
+                padding: '18px 20px',
+                borderRadius: '12px',
+                background: 'rgba(99, 102, 241, 0.08)',
+                border: '1px solid rgba(99, 102, 241, 0.2)'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <HelpCircle size={15} color="#cbd5e1" />
+                  <span style={{ fontSize: '0.88rem', fontWeight: 600, color: '#f8fafc' }}>
+                    {item.question}
+                  </span>
+                </div>
+                {item.created_at && (
+                  <span style={{ fontSize: '0.7rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Clock size={11} /> {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                )}
+              </div>
 
-          <p style={{ fontSize: '0.9rem', color: '#e2e8f0', margin: '0 0 14px 0', lineHeight: 1.5 }}>
-            {response.answer}
-          </p>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '10px' }}>
+                <CheckCircle2 size={16} color="#818cf8" style={{ marginTop: '2px', flexShrink: 0 }} />
+                <p style={{ fontSize: '0.88rem', color: '#e2e8f0', margin: 0, lineHeight: 1.5 }}>
+                  {item.answer}
+                </p>
+              </div>
 
-          {/* Tools & Sources Footnote */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', paddingTop: '10px', borderTop: '1px solid rgba(255, 255, 255, 0.06)', fontSize: '0.75rem', color: '#94a3b8' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Database size={13} color="#38bdf8" />
-              <span>Sources: <strong>{response.sources?.join(', ') || 'invoices'}</strong></span>
+              {/* Tools & Sources Footnote */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', paddingTop: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.06)', fontSize: '0.73rem', color: '#94a3b8' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Database size={12} color="#38bdf8" />
+                  <span>Sources: <strong>{item.sources?.join(', ') || 'invoices'}</strong></span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Bot size={12} color="#a855f7" />
+                  <span>Tools Used: <strong>{item.tools_used?.join(', ') || 'get_invoice_summary'}</strong></span>
+                </div>
+              </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Bot size={13} color="#a855f7" />
-              <span>Tools Used: <strong>{response.tools_used?.join(', ') || 'get_invoice_summary'}</strong></span>
-            </div>
-          </div>
+          ))}
         </div>
       )}
     </div>
   );
 }
+
