@@ -13,9 +13,9 @@ class Settings(BaseSettings):
 
     # LLM Settings
     LLM_PROVIDER: str = "openai_compatible"
-    LLM_MODEL: str = "glm-4.7-flash:latest"
-    LLM_BASE_URL: str = "https://open.bigmodel.cn/api/paas/v4/"
-    LLM_API_KEY: str = ""
+    LLM_MODEL: str = "meta/llama-3.2-11b-vision-instruct"
+    LLM_BASE_URL: str = "https://integrate.api.nvidia.com/v1"
+    LLM_API_KEY: str = "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"
 
     # Tesseract OCR Settings
     TESSERACT_CMD: Optional[str] = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
