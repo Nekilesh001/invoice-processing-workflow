@@ -34,6 +34,8 @@ class AgentDecision:
     po_verified: bool = False
     duplicate_checked: bool = False
     confidence_score: float = 1.0
+    procurement_assessment: Optional[Dict[str, Any]] = None
+    risk_assessment: Optional[Dict[str, Any]] = None
 
 
 class InvoiceAgent:
@@ -97,7 +99,9 @@ class InvoiceAgent:
             vendor_verified=proc.vendor_verified if proc else False,
             po_verified=proc.po_verified if proc else False,
             duplicate_checked="check_duplicate_invoice" in [t.get("tool") for t in executed_tools],
-            confidence_score=final_decision.confidence_score
+            confidence_score=final_decision.confidence_score,
+            procurement_assessment=proc.model_dump() if proc else None,
+            risk_assessment=risk.model_dump() if risk else None
         )
 
     def _execute_tool(self, name: str, args: Dict[str, Any], session: Optional[Session], on_tool_callback: Optional[Any] = None) -> Dict[str, Any]:

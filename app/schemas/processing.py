@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 from app.schemas.invoice import ExtractedInvoice
@@ -38,5 +38,7 @@ class ProcessingResult(BaseModel):
     validation_result: Optional[ValidationResult] = Field(default=None, description="Validation results")
     database_invoice_id: Optional[int] = Field(default=None, description="Database primary key if saved")
     review_task_id: Optional[int] = Field(default=None, description="Review task ID if human review is required")
+    procurement_assessment: Optional[Dict[str, Any]] = Field(default=None, description="Structured procurement verification agent output")
+    risk_assessment: Optional[Dict[str, Any]] = Field(default=None, description="Structured financial risk agent output")
     error_message: Optional[str] = Field(default=None, description="Pipeline error description if status is FAILED")
     processed_at: datetime = Field(default_factory=datetime.utcnow, description="Completion timestamp")

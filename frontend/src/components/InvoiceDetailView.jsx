@@ -110,6 +110,30 @@ export default function InvoiceDetailView({ invoiceId, onBack, onStatusUpdated }
   const isPoMatch = poMatch.is_match === true;
   const lineResults = poMatch.line_results || [];
 
+  // Real multi-agent assessment data returned by the backend (see BUG-1 / BUG-5 fix).
+  // These may be null for older invoices processed before this data was persisted.
+  const procurement = data.procurement_assessment || null;
+  const risk = data.risk_assessment || null;
+
+  const procurementStatus = procurement?.status || data.procurement_status || 'UNKNOWN';
+  const procurementBadgeClass = procurementStatus === 'PASS' ? 'badge-success'
+    : procurementStatus === 'FAIL' ? 'badge-danger'
+    : 'badge-warning';
+  const vendorVerified = procurement ? !!procurement.vendor_verified : !!data.vendor?.name;
+  const totalsMatch = procurement ? !procurement.issues?.some(i => /TOTAL|CALC/i.test(i)) : true;
+  const duplicateFlagged = risk ? (risk.flags || []).some(f => /DUPLICATE/i.test(f)) : false;
+
+  const riskLevel = risk?.risk_level || 'UNKNOWN';
+  const riskBadgeClass = riskLevel === 'LOW' ? 'badge-success' : riskLevel === 'HIGH' ? 'badge-danger' : 'badge-warning';
+  const riskHeadline = risk
+    ? ((risk.flags && risk.flags.length > 0) ? risk.flags[0].replace(/_/g, ' ') : 'No Anomalies Flagged')
+    : 'Risk Data Unavailable';
+  const riskSubtext = risk
+    ? (risk.flags && risk.flags.length > 0
+        ? `${risk.flags.length} flag${risk.flags.length > 1 ? 's' : ''} raised`
+        : 'Zero duplicate or amount risk')
+    : 'Not assessed for this invoice';
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Top Header & Navigation */}
@@ -379,12 +403,12 @@ export default function InvoiceDetailView({ invoiceId, onBack, onStatusUpdated }
               <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
                   <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8' }}>PROCUREMENT AGENT</span>
-                  <span className={`badge ${data.vendor?.name ? 'badge-success' : 'badge-warning'}`} style={{ fontSize: '0.65rem' }}>
-                    {data.vendor?.name ? 'PASS' : 'REVIEW'}
+                  <span className={`badge ${procurementBadgeClass}`} style={{ fontSize: '0.65rem' }}>
+                    {procurementStatus}
                   </span>
                 </div>
                 <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#f8fafc', display: 'block' }}>
-                  {data.vendor?.name ? 'Vendor Verified' : 'Unknown Vendor'}
+                  {vendorVerified ? 'Vendor Verified' : 'Unknown Vendor'}
                 </span>
                 <span style={{ fontSize: '0.73rem', color: '#64748b' }}>
                   {data.po_number ? (isPoMatch ? 'PO Lines Matched' : 'PO Line Mismatch') : 'No PO Reference'}
@@ -395,15 +419,15 @@ export default function InvoiceDetailView({ invoiceId, onBack, onStatusUpdated }
               <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
                   <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8' }}>FINANCIAL RISK AGENT</span>
-                  <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>
-                    LOW RISK
+                  <span className={`badge ${riskBadgeClass}`} style={{ fontSize: '0.65rem' }}>
+                    {riskLevel} RISK
                   </span>
                 </div>
-                <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#4ade80', display: 'block' }}>
-                  No Anomalies Flagged
+                <span style={{ fontSize: '0.82rem', fontWeight: 600, color: riskLevel === 'LOW' ? '#4ade80' : '#f8fafc', display: 'block', textTransform: 'capitalize' }}>
+                  {riskHeadline.toLowerCase()}
                 </span>
                 <span style={{ fontSize: '0.73rem', color: '#64748b' }}>
-                  Zero duplicate or amount risk
+                  {riskSubtext}
                 </span>
               </div>
 
@@ -427,18 +451,18 @@ export default function InvoiceDetailView({ invoiceId, onBack, onStatusUpdated }
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
               <VerificationItem
                 label="Vendor Verified"
-                passed={!!data.vendor?.name}
-                detail={data.vendor?.name ? `Master Registry: ${data.vendor.name}` : 'Unknown Vendor'}
+                passed={vendorVerified}
+                detail={vendorVerified ? `Master Registry: ${data.vendor?.name || ''}` : 'Unknown Vendor'}
               />
               <VerificationItem
                 label="Duplicate Check"
-                passed={true}
-                detail="No identical invoice found"
+                passed={!duplicateFlagged}
+                detail={duplicateFlagged ? 'Possible duplicate invoice detected' : 'No identical invoice found'}
               />
               <VerificationItem
                 label="Calculations Valid"
-                passed={true}
-                detail="Subtotal + Tax = Total"
+                passed={totalsMatch}
+                detail={totalsMatch ? 'Subtotal + Tax = Total' : (procurement?.issues?.find(i => /TOTAL|CALC/i.test(i)) || 'Totals mismatch detected')}
               />
               <VerificationItem
                 label="Purchase Order"
@@ -667,10 +691,22 @@ export default function InvoiceDetailView({ invoiceId, onBack, onStatusUpdated }
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <AuditLogStep title="Document Extracted" detail={`File: ${data.source_filename}`} status="DONE" />
-              <AuditLogStep title="Deterministic Math Validation" detail="Subtotal + Tax = Total Verified" status="PASSED" />
-              <AuditLogStep title="Tool: lookup_vendor" detail={`Vendor: ${data.vendor?.name || 'N/A'}`} status="EXECUTED" />
-              {data.po_number && <AuditLogStep title="Tool: lookup_purchase_order" detail={`PO: ${data.po_number}`} status="EXECUTED" />}
-              {data.po_number && <AuditLogStep title="Tool: compare_invoice_to_purchase_order" detail={`Line match status: ${poMatch.overall_status || 'N/A'}`} status="EXECUTED" />}
+              <AuditLogStep
+                title="Deterministic Math Validation"
+                detail={totalsMatch ? 'Subtotal + Tax = Total Verified' : (procurement?.issues?.find(i => /TOTAL|CALC/i.test(i)) || 'Totals mismatch detected')}
+                status={totalsMatch ? 'PASSED' : 'FAILED'}
+              />
+              <AuditLogStep
+                title="Tool: lookup_vendor"
+                detail={`Vendor: ${data.vendor?.name || 'N/A'}${procurement ? (vendorVerified ? ' (verified)' : ' (not found in registry)') : ''}`}
+                status={procurement ? 'EXECUTED' : 'NOT RECORDED'}
+              />
+              {data.po_number && <AuditLogStep title="Tool: lookup_purchase_order" detail={`PO: ${data.po_number}`} status={procurement ? 'EXECUTED' : 'NOT RECORDED'} />}
+              {data.po_number && <AuditLogStep title="Tool: compare_invoice_to_purchase_order" detail={`Line match status: ${poMatch.overall_status || 'N/A'}`} status={poMatch.overall_status ? 'EXECUTED' : 'NOT RECORDED'} />}
+              {risk && <AuditLogStep title="Tool: financial risk checks" detail={risk.flags?.length ? `Flags: ${risk.flags.join(', ')}` : 'No risk flags raised'} status="EXECUTED" />}
+              <p style={{ color: '#64748b', fontSize: '0.72rem', marginTop: '4px', fontStyle: 'italic' }}>
+                Full per-tool argument/output trace is available on the Agent Trace tab immediately after upload (not yet persisted for historical invoices).
+              </p>
             </div>
           </div>
         )}

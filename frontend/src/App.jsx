@@ -127,6 +127,7 @@ export default function App() {
               {selectedInvoiceId || activeTab === 'detail' ? (
             <InvoiceDetailView
               invoiceId={selectedInvoiceId || lastResult?.result?.database_invoice_id}
+              user={user}
               onBack={() => {
                 setSelectedInvoiceId(null);
                 setActiveTab('invoices');
