@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Building2, Search, RefreshCw, ChevronRight, ArrowLeft, ShoppingBag, FileText, CheckCircle2, ShieldCheck, Mail, Phone, MapPin, LayoutGrid, List, Eye } from 'lucide-react';
+import { apiFetch } from '../api';
 
 export default function VendorsView({ onSelectVendor, onSelectPo, onSelectInvoice }) {
   const [vendors, setVendors] = useState([]);
@@ -16,7 +17,7 @@ export default function VendorsView({ onSelectVendor, onSelectPo, onSelectInvoic
       const url = searchTerm.trim()
         ? `/api/v1/vendors?search=${encodeURIComponent(searchTerm.trim())}`
         : '/api/v1/vendors';
-      const res = await fetch(url);
+      const res = await apiFetch(url);
       if (res.ok) {
         const data = await res.json();
         setVendors(data);
@@ -35,7 +36,7 @@ export default function VendorsView({ onSelectVendor, onSelectPo, onSelectInvoic
   const fetchVendorDetail = async (id) => {
     setDetailLoading(true);
     try {
-      const res = await fetch(`/api/v1/vendors/${id}`);
+      const res = await apiFetch(`/api/v1/vendors/${id}`);
       if (res.ok) {
         const data = await res.json();
         setVendorDetail(data);

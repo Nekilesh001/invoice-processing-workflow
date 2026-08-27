@@ -1,25 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import {
   ArrowLeft, FileText, CheckCircle, AlertTriangle, XCircle, ShieldCheck,
-  Building2, Calendar, CreditCard, DollarSign, Layers, Check, X, ChevronDown, ChevronUp, AlertCircle, ExternalLink
+  Building2, Calendar, CreditCard, DollarSign, Layers, Check, X, ChevronDown, ChevronUp, AlertCircle, ExternalLink, Lock
 } from 'lucide-react';
+import { apiFetch } from '../api';
 
-export default function InvoiceDetailView({ invoiceId, onBack, onStatusUpdated }) {
+export default function InvoiceDetailView({ invoiceId, user, onBack, onStatusUpdated }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
-  const [reviewerName, setReviewerName] = useState('Finance Reviewer');
+  const [reviewerName, setReviewerName] = useState(user?.full_name || user?.username || 'Finance Reviewer');
   const [reviewerComment, setReviewerComment] = useState('');
   const [showConfirmModal, setShowConfirmModal] = useState(null); // 'approve' | 'reject' | null
   const [commentError, setCommentError] = useState(null);
   const [showAuditTrail, setShowAuditTrail] = useState(false);
 
+  useEffect(() => {
+    if (user?.full_name || user?.username) {
+      setReviewerName(user.full_name || user.username);
+    }
+  }, [user]);
+
   const fetchInvoiceDetail = async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/v1/invoices/${invoiceId}`);
+      const res = await apiFetch(`/api/v1/invoices/${invoiceId}`);
       if (!res.ok) {
         throw new Error(`Failed to load invoice #${invoiceId}`);
       }
@@ -53,7 +60,7 @@ export default function InvoiceDetailView({ invoiceId, onBack, onStatusUpdated }
         ? `/api/v1/reviews/${data.review_task.id}/approve`
         : `/api/v1/reviews/${data.review_task.id}/reject`;
 
-      const res = await fetch(endpoint, {
+      const res = await apiFetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -228,22 +235,28 @@ export default function InvoiceDetailView({ invoiceId, onBack, onStatusUpdated }
             )}
 
             <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '6px' }}>REVIEWER IDENTITY</label>
-              <input
-                type="text"
-                value={reviewerName}
-                onChange={e => setReviewerName(e.target.value)}
-                style={{
-                  width: '100%',
-                  background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: '8px',
-                  padding: '8px 12px',
-                  color: '#ffffff',
-                  fontSize: '0.85rem',
-                  outline: 'none'
-                }}
-              />
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '6px' }}>
+                <Lock size={12} color="#818cf8" /> REVIEWER IDENTITY (VERIFIED USER)
+              </label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="text"
+                  value={reviewerName}
+                  readOnly
+                  style={{
+                    width: '100%',
+                    background: 'rgba(255, 255, 255, 0.03)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: '8px',
+                    padding: '8px 12px 8px 34px',
+                    color: '#94a3b8',
+                    fontSize: '0.85rem',
+                    outline: 'none',
+                    cursor: 'not-allowed'
+                  }}
+                />
+                <Lock size={14} color="#818cf8" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+              </div>
             </div>
 
             <div style={{ marginBottom: '24px' }}>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Database, Search, Eye, RefreshCw, FileText, CheckCircle2, ShieldAlert, XCircle, LayoutGrid, List, Building2, ShoppingBag, DollarSign, Calendar } from 'lucide-react';
+import { apiFetch } from '../api';
 
 export default function InvoicesTable({ onSelectInvoice }) {
   const [invoices, setInvoices] = useState([]);
@@ -11,7 +12,7 @@ export default function InvoicesTable({ onSelectInvoice }) {
   const fetchInvoices = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/v1/invoices');
+      const res = await apiFetch('/api/v1/invoices');
       if (res.ok) {
         const data = await res.json();
         setInvoices(data);

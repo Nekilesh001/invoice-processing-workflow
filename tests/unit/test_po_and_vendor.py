@@ -79,12 +79,22 @@ def test_3_database_failure_handling():
 
 
 def test_4_vendor_found_in_database(memory_db_session):
-    """Test 4 — Registered vendor found returning VERIFIED."""
+    """Test 4 — Registered vendor found returning VERIFIED and EXACT match_type."""
     res = lookup_vendor("Acme Cloud Solutions Inc.", session=memory_db_session)
     assert res["found"] is True
     assert res["status"] == "VERIFIED"
+    assert res["match_type"] == "EXACT"
     assert res["is_approved"] is True
     assert res["tax_id"] == "US-88492019"
+
+
+def test_4b_fuzzy_vendor_match_not_verified(memory_db_session):
+    """Test 4b — Substring vendor match returns FUZZY_SUBSTRING and is NOT automatically verified."""
+    res = lookup_vendor("Acme Cloud", session=memory_db_session)
+    assert res["found"] is False
+    assert res["status"] == "FUZZY_MATCH"
+    assert res["match_type"] == "FUZZY_SUBSTRING"
+    assert res["is_approved"] is False
 
 
 def test_5_unknown_vendor_not_verified(memory_db_session):
@@ -92,6 +102,7 @@ def test_5_unknown_vendor_not_verified(memory_db_session):
     res = lookup_vendor("Unregistered Rogue Vendor LLC", session=memory_db_session)
     assert res["found"] is False
     assert res["status"] == "UNKNOWN_VENDOR"
+    assert res["match_type"] == "NONE"
     assert res["is_approved"] is False
 
 

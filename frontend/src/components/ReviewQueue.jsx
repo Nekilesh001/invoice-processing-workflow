@@ -1,16 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldAlert, CheckCircle2, XCircle, AlertTriangle, RefreshCw, UserCheck, Code, LayoutGrid, DollarSign, Calendar, FileText, Building } from 'lucide-react';
+import { ShieldAlert, CheckCircle2, XCircle, AlertTriangle, RefreshCw, UserCheck, Code, LayoutGrid, DollarSign, Calendar, FileText, Building, Check, X, Lock } from 'lucide-react';
+import { apiFetch } from '../api';
 
-export default function ReviewQueue({ onCountChange, onSelectInvoice }) {
+export default function ReviewQueue({ user, onCountChange, onSelectInvoice }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
   const [viewModes, setViewModes] = useState({}); // { [taskId]: 'data' | 'json' }
+  const [confirmModal, setConfirmModal] = useState(null); // { task, type: 'approve' | 'reject' } | null
+  const [reviewerName, setReviewerName] = useState(user?.full_name || user?.username || 'Finance Reviewer');
+  const [reviewerComment, setReviewerComment] = useState('');
+  const [commentError, setCommentError] = useState(null);
+
+  useEffect(() => {
+    if (user?.full_name || user?.username) {
+      setReviewerName(user.full_name || user.username);
+    }
+  }, [user]);
 
   const fetchTasks = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/v1/reviews?status=PENDING');
+      const res = await apiFetch('/api/v1/reviews?status=PENDING');
       if (res.ok) {
         const data = await res.json();
         setTasks(data);
@@ -27,19 +38,47 @@ export default function ReviewQueue({ onCountChange, onSelectInvoice }) {
     fetchTasks();
   }, []);
 
-  const handleAction = async (taskId, action) => {
-    setActionLoading(taskId);
-    try {
-      const endpoint = action === 'approve'
-        ? `/api/v1/reviews/${taskId}/approve`
-        : `/api/v1/reviews/${taskId}/reject`;
+  const openConfirmModal = (task, actionType) => {
+    setCommentError(null);
+    setReviewerComment('');
+    setConfirmModal({ task, type: actionType });
+  };
 
-      const res = await fetch(endpoint, { method: 'POST' });
-      if (res.ok) {
-        await fetchTasks();
+  const handleConfirmAction = async () => {
+    if (!confirmModal) return;
+
+    const { task, type } = confirmModal;
+    if (type === 'reject' && (!reviewerComment || !reviewerComment.trim())) {
+      setCommentError('Reviewer comment is required when rejecting an invoice.');
+      return;
+    }
+    setCommentError(null);
+    setActionLoading(task.id);
+
+    try {
+      const endpoint = type === 'approve'
+        ? `/api/v1/reviews/${task.id}/approve`
+        : `/api/v1/reviews/${task.id}/reject`;
+
+      const res = await apiFetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reviewer: reviewerName.trim() || 'Finance Reviewer',
+          comment: reviewerComment.trim()
+        })
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.detail || `Failed to ${type} review task`);
       }
+
+      setConfirmModal(null);
+      setReviewerComment('');
+      await fetchTasks();
     } catch (e) {
-      console.error(`Failed to ${action} task`, e);
+      setCommentError(e.message);
     } finally {
       setActionLoading(null);
     }
@@ -289,7 +328,7 @@ export default function ReviewQueue({ onCountChange, onSelectInvoice }) {
                 <button
                   className="btn-primary"
                   style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', justifyContent: 'center', padding: '10px 12px', fontSize: '0.85rem' }}
-                  onClick={() => handleAction(task.id, 'approve')}
+                  onClick={() => openConfirmModal(task, 'approve')}
                   disabled={actionLoading === task.id}
                 >
                   <CheckCircle2 size={16} /> Approve
@@ -298,7 +337,7 @@ export default function ReviewQueue({ onCountChange, onSelectInvoice }) {
                 <button
                   className="btn-secondary"
                   style={{ background: 'rgba(244, 63, 94, 0.15)', color: '#f87171', borderColor: 'rgba(244, 63, 94, 0.3)', justifyContent: 'center', padding: '10px 12px', fontSize: '0.85rem' }}
-                  onClick={() => handleAction(task.id, 'reject')}
+                  onClick={() => openConfirmModal(task, 'reject')}
                   disabled={actionLoading === task.id}
                 >
                   <XCircle size={16} /> Reject
@@ -316,6 +355,124 @@ export default function ReviewQueue({ onCountChange, onSelectInvoice }) {
           );
         })}
       </div>
+
+      {/* Confirmation Modal */}
+      {confirmModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 1000,
+          background: 'rgba(0, 0, 0, 0.75)',
+          backdropFilter: 'blur(6px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '24px'
+        }}>
+          <div className="glass-panel" style={{
+            maxWidth: '520px',
+            width: '100%',
+            padding: '28px',
+            background: '#0f172a',
+            border: `1px solid ${confirmModal.type === 'approve' ? 'rgba(34, 197, 94, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`,
+            borderRadius: '16px',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+          }}>
+            <h3 style={{ fontSize: '1.15rem', fontWeight: 800, marginBottom: '8px', color: confirmModal.type === 'approve' ? '#4ade80' : '#f87171', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {confirmModal.type === 'approve' ? <CheckCircle2 size={22} /> : <AlertTriangle size={22} />}
+              {confirmModal.type === 'approve' ? 'Confirm Invoice Approval' : 'Confirm Invoice Rejection'}
+            </h3>
+            <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '20px' }}>
+              {confirmModal.type === 'approve'
+                ? `Approve invoice ${confirmModal.task.invoice_number || `#${confirmModal.task.invoice_id}`} and transition database status to APPROVED.`
+                : `Reject invoice ${confirmModal.task.invoice_number || `#${confirmModal.task.invoice_id}`} and transition database status to REJECTED. A comment is required.`}
+            </p>
+
+            {commentError && (
+              <div style={{ padding: '10px 14px', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '8px', color: '#f87171', fontSize: '0.82rem', marginBottom: '16px' }}>
+                {commentError}
+              </div>
+            )}
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '6px' }}>
+                <Lock size={12} color="#818cf8" /> REVIEWER IDENTITY (VERIFIED USER)
+              </label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="text"
+                  value={reviewerName}
+                  readOnly
+                  style={{
+                    width: '100%',
+                    background: 'rgba(255, 255, 255, 0.03)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: '8px',
+                    padding: '8px 12px 8px 34px',
+                    color: '#94a3b8',
+                    fontSize: '0.85rem',
+                    outline: 'none',
+                    cursor: 'not-allowed'
+                  }}
+                />
+                <Lock size={14} color="#818cf8" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '6px' }}>
+                REVIEWER COMMENT {confirmModal.type === 'reject' && <span style={{ color: '#f87171' }}>* (Required)</span>}
+              </label>
+              <textarea
+                rows="3"
+                placeholder={confirmModal.type === 'approve' ? 'Optional notes (e.g. Confirmed discrepancy with procurement)' : 'Enter rejection reason (e.g. Quantity mismatch confirmed with buyer)'}
+                value={reviewerComment}
+                onChange={e => setReviewerComment(e.target.value)}
+                style={{
+                  width: '100%',
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '8px',
+                  padding: '10px 12px',
+                  color: '#ffffff',
+                  fontSize: '0.85rem',
+                  outline: 'none',
+                  resize: 'vertical'
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button
+                className="btn-secondary"
+                disabled={actionLoading === confirmModal.task.id}
+                onClick={() => { setConfirmModal(null); setCommentError(null); }}
+                style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+              >
+                Cancel
+              </button>
+
+              <button
+                className={confirmModal.type === 'approve' ? 'btn-success' : 'btn-danger'}
+                disabled={actionLoading === confirmModal.task.id}
+                onClick={handleConfirmAction}
+                style={{
+                  padding: '8px 18px',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  background: confirmModal.type === 'approve' ? '#16a34a' : '#dc2626',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer'
+                }}
+              >
+                {actionLoading === confirmModal.task.id ? 'Processing...' : confirmModal.type === 'approve' ? 'Confirm Approval' : 'Confirm Rejection'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

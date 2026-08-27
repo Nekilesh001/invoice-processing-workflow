@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Upload, FileUp, Sparkles, CheckCircle, AlertTriangle, RefreshCw, FileText, Cpu, Terminal, ShieldCheck } from 'lucide-react';
+import { apiFetch } from '../api';
 
 export default function InvoiceUpload({ onProcessingComplete }) {
   const [dragActive, setDragActive] = useState(false);
@@ -66,7 +67,7 @@ export default function InvoiceUpload({ onProcessingComplete }) {
     formData.append('file', selectedFile);
 
     try {
-      const response = await fetch('/api/v1/invoices/process-stream', {
+      const response = await apiFetch('/api/v1/invoices/process-stream', {
         method: 'POST',
         body: formData,
       });

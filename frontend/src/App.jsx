@@ -10,6 +10,7 @@ import VendorsView from './components/VendorsView';
 import PurchaseOrdersView from './components/PurchaseOrdersView';
 import DashboardView from './components/DashboardView';
 import LoginView from './components/LoginView';
+import { apiFetch } from './api';
 
 export default function App() {
   const [token, setToken] = useState(() => localStorage.getItem('invoicemind_token') || null);
@@ -42,7 +43,7 @@ export default function App() {
 
   useEffect(() => {
     // Check backend connection health
-    fetch('/api/v1/reviews?status=PENDING')
+    apiFetch('/api/v1/reviews?status=PENDING')
       .then(res => {
         if (res.ok) {
           setApiOnline(true);
@@ -133,7 +134,7 @@ export default function App() {
                 setActiveTab('invoices');
               }}
               onStatusUpdated={() => {
-                fetch('/api/v1/reviews?status=PENDING')
+                apiFetch('/api/v1/reviews?status=PENDING')
                   .then(res => res.json())
                   .then(data => setPendingReviewCount(Array.isArray(data) ? data.length : 0));
               }}
@@ -180,6 +181,7 @@ export default function App() {
 
               {activeTab === 'reviews' && (
                 <ReviewQueue
+                  user={user}
                   onCountChange={(count) => setPendingReviewCount(count)}
                   onSelectInvoice={handleSelectInvoice}
                 />
