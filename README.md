@@ -1,56 +1,60 @@
-# AI Invoice Processing & Verification Platform
+# AI Multi-Agent Invoice Verification Platform
 
-A production-grade, end-to-end **AI Invoice Processing & Verification Platform** built with **Python 3.11**, **React 19 + Vite**, **WebGL 3D Shaders (`ogl`)**, **PyMuPDF**, **Tesseract OCR**, **OpenAI-compatible LLMs (GLM-4.7-Flash)**, **FastAPI**, **Pydantic**, and **MySQL Server 8.0**.
+A production-grade, end-to-end **AI Multi-Agent Invoice Verification Platform** built with **Python 3.11**, **React 19 + Vite**, **WebGL 3D Shaders (`ogl`)**, **PyMuPDF**, **Tesseract OCR**, **OpenAI-compatible LLMs (GLM-4.7-Flash)**, **FastAPI**, **Pydantic**, and **MySQL Server 8.0**.
 
-Inspired by the **Agentic AI course from DeepLearning.AI by Andrew Ng**, this platform transitions from a deterministic baseline processing pipeline into an **Autonomous Agentic AI Workflow** equipped with specialized domain verification tools and a modern Web UI.
+Inspired by the **Agentic AI course from DeepLearning.AI by Andrew Ng**, this platform features a genuine **Multi-Agent Architecture** coordinating three specialized autonomous agents, an orchestrator, and a deterministic financial governance engine.
 
 ---
 
 ## 🌟 Key Features
 
-- **Modern Web Frontend Dashboard**: Interactive React frontend (`frontend/`) featuring a custom **WebGL 3D Prism Raymarching Shader canvas** (`ogl`), dark glassmorphism design system, drag-and-drop invoice upload, live agent trace viewer, and human review queue panel.
+- **Multi-Agent Verification Architecture**:
+  - 🛒 **Procurement Verification Agent** (`ProcurementAgent`): Validates vendor registration in master registry, queries purchase order status, checks authorized balances, and performs line-item matching.
+  - 🛡️ **Financial Risk / Fraud Agent** (`FinancialRiskAgent`): Evaluates duplicate invoice submissions, invoice total anomalies vs vendor historical averages, and suspicious numbering patterns.
+  - 📊 **Invoice Data Analyst Agent** (`InvoiceDataAnalystAgent`): Natural-language accounts payable business intelligence assistant (`POST /api/v1/analytics/ask`) using controlled, read-only SQL query tools.
+- **Deterministic Approval Policy Engine** (`ApprovalPolicyEngine`): Specialist agents return structured assessments (`ProcurementAssessment`, `RiskAssessment`), while the policy engine enforces final `AUTO_PROCESS` vs `HUMAN_REVIEW` safety boundaries.
+- **Multi-Agent Orchestrator** (`InvoiceOrchestrator`): Coordinates specialist agent execution and aggregates structured evaluation state and agent execution traces.
+- **Interactive Web UI Dashboard**: React frontend (`frontend/`) featuring dark glassmorphism design system, interactive **Invoice Data Analyst Assistant** widget with preset query pills, live agent trace viewer, and specialized Multi-Agent Verification summary cards.
 - **Dual Extraction Pipeline**: Fast native PDF text extraction via PyMuPDF (`fitz`) with automatic high-DPI rendering and **Tesseract OCR fallback** for scanned/rasterized documents.
 - **LLM Structured Parsing**: OpenAI-compatible client abstraction targeting `glm-4.7-flash:latest` with JSON mode enforcement and versioned system prompts (`invoice_extraction_v1.txt`).
-- **Pydantic Schemas**: Strongly-typed models with `Decimal` precision for financial totals, `date` fields, and nested line items.
 - **Deterministic Validation Engine**: 7 business rules verifying grand totals, line items arithmetic, date sanity (`due_date >= invoice_date`), and field completeness without relying on LLM for math.
-- **Autonomous Agentic AI Layer**: Observe-Reason-Act tool-calling agent (`InvoiceAgent`) executing domain verification tools:
-  - `lookup_vendor`: Real MySQL master vendor registry lookup with safe `UNKNOWN_VENDOR` routing to `HUMAN_REVIEW`.
-  - `lookup_purchase_order`: Real MySQL-backed PO database query (`PurchaseOrderRepository`) matching authorized amounts and remaining balances.
-  - `check_duplicate_invoice`: Database-level duplicate detection via `InvoiceRepository`.
-  - `validate_invoice_totals`: Line item math verification tool.
-  - `create_review_task`: Idempotent human-in-the-loop task queue routing.
-- **MySQL Relational Storage**: Database schema built with SQLAlchemy 2.0 and PyMySQL for master vendors, customers, purchase orders (`purchase_orders`, `purchase_order_line_items`), invoices, line items, validation logs, and review tasks with `UniqueConstraint` indices.
-- **Idempotent DB Seeder**: Database seeder script (`scripts/seed_database.py`) populating synthetic master vendors and purchase orders into MySQL without data duplication.
+- **MySQL Relational Storage**: Database schema built with SQLAlchemy 2.0 and PyMySQL for master vendors, customers, purchase orders, invoices, line items, validation logs, and review tasks with `UniqueConstraint` indices.
 - **Authentication & RBAC**: JWT Bearer token authentication (`POST /api/v1/auth/login`) with role-based access control (`ADMIN`, `AP_MANAGER`, `REVIEWER`, `VIEWER`) and reviewer identity tracking on all audit actions.
-- **Operations Dashboard**: Real-time accounts payable analytics dashboard (`GET /api/v1/dashboard/summary`) with SQL aggregate counts, financial monetary totals, workflow status distribution bar, and review exception breakdowns.
-- **AI System Evaluation Benchmark**: Comprehensive evaluation suite (`scripts/evaluate_pipeline.py`) measuring end-to-end extraction accuracy, OCR fallback rate, PO line matching correctness, zero unsafe auto-approvals, and stage-by-stage execution latency.
+- **Comprehensive Test Suite**: 96 automated unit and integration tests passing in ~3.5 seconds (`pytest`).
+- **AI System Evaluation Benchmark**: Evaluation suite (`scripts/evaluate_pipeline.py`) measuring extraction accuracy, OCR fallback rate, PO line matching correctness, zero unsafe auto-approvals, and stage-by-stage execution latency.
 
 ---
 
-## 📐 Architecture & Workflow
+## 📐 Multi-Agent Architecture & Workflow
 
 ```mermaid
 flowchart TD
-    A[Invoice PDF / Image] --> B[React Web Frontend / REST API]
-    B --> C[Document Extractor PyMuPDF + Tesseract OCR]
-    C --> D[LLM Structured Extraction GLM-4]
-    D --> E[InvoiceAgent Observe-Reason-Act Loop]
-    
-    E --> F[Tool: check_duplicate_invoice]
-    E --> G[Tool: lookup_vendor]
-    E --> H[Tool: lookup_purchase_order]
-    E --> I[Tool: validate_invoice_totals]
-    
-    F --> J[Agent Decision Engine]
-    G --> J
-    H --> J
+    A[Invoice Document PDF/Image] --> B[React Frontend / REST API]
+    B --> C[Dual Extractor: PyMuPDF + Tesseract OCR]
+    C --> D[LLM Structured Parser: GLM-4]
+    D --> E[InvoiceOrchestrator]
+
+    subgraph Multi-Agent Verification Loop
+        E --> F[Procurement Verification Agent]
+        F -->|Vendor & PO DB Tools| G[ProcurementAssessment + AgentTrace]
+
+        E --> H[Financial Risk / Fraud Agent]
+        H -->|Historical Anomaly & Duplicate Tools| I[RiskAssessment + AgentTrace]
+    end
+
+    G --> J[ApprovalPolicyEngine]
     I --> J
-    
-    J -- All Verified & PO Matched --> K[AUTO_PROCESS -> Approve Invoice]
-    J -- Mismatch / Duplicate / Missing --> L[HUMAN_REVIEW -> Review Task Queue]
-    
+
+    J -- All Checks Pass --> K[AUTO_PROCESS -> Approve Invoice]
+    J -- Discrepancy / Risk / Unknown Vendor --> L[HUMAN_REVIEW -> Task Queue]
+
     K --> M[(MySQL Database invoice_db)]
     L --> M
+
+    subgraph Business Intelligence Q&A
+        N[User Dashboard Query] --> O[Invoice Data Analyst Agent]
+        O -->|Controlled Read-Only DB Tools| P[Analytics Response]
+    end
 ```
 
 ---
@@ -65,7 +69,7 @@ flowchart TD
 - **Data Validation & Schemas**: Pydantic v2, Pydantic-Settings
 - **Database Layer**: MySQL Server 8.0, SQLAlchemy 2.0, PyMySQL
 - **Web API Backend**: FastAPI, Uvicorn, Starlette
-- **Testing & Benchmarking**: Pytest (45 unit & integration tests), ReportLab
+- **Testing & Benchmarking**: Pytest (96 unit & integration tests), ReportLab
 
 ---
 
@@ -110,18 +114,16 @@ DB_PASSWORD=your_password_here
 
 ### 4. Run Application & Web Frontend
 
-#### Option A: Single Command (FastAPI serves API + Web App)
+#### Start Backend FastAPI Server:
 ```powershell
-.\.venv\Scripts\uvicorn app.main:app --reload --port 8000
+.\.venv\Scripts\uvicorn.exe app.main:app --reload --port 8000
 ```
 - Open **`http://localhost:8000`** in your browser for the Web Dashboard!
 - Open **`http://localhost:8000/docs`** for interactive Swagger REST API docs!
 
-#### Option B: Vite Frontend Development Server (Hot Reloading)
+#### Start Vite Frontend Development Server:
 ```powershell
-cd frontend
-npm install
-npm run dev
+npm --prefix frontend run dev
 ```
 - Open **`http://localhost:5173`** for Vite dev server!
 
@@ -144,11 +146,20 @@ python scripts/process_invoice.py --file data/sample_invoices/invoice_001_normal
 
 ## 🔬 Automated Testing (`pytest`)
 
-Execute the complete unit and integration test suite:
+Execute the complete unit and integration test suite (96 tests):
 ```powershell
-pytest
+.\.venv\Scripts\pytest.exe
 ```
-*Output: `45 passed in 9.63s`*
+*Output: `96 passed in 3.42s`*
+
+---
+
+## 📊 Evaluation Benchmark
+
+Run the Multi-Agent evaluation benchmark script:
+```powershell
+.\.venv\Scripts\python.exe scripts/evaluate_pipeline.py
+```
 
 ---
 
