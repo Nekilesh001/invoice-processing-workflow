@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ShoppingBag, Search, RefreshCw, ChevronRight, ArrowLeft, Building2, FileText, CheckCircle2, AlertTriangle, Layers, DollarSign, LayoutGrid, List, Eye } from 'lucide-react';
+import { apiFetch } from '../api';
 
 export default function PurchaseOrdersView({ onSelectPo, onSelectVendor, onSelectInvoice }) {
   const [pos, setPos] = useState([]);
@@ -18,7 +19,7 @@ export default function PurchaseOrdersView({ onSelectPo, onSelectVendor, onSelec
       if (searchTerm.trim()) params.append('search', searchTerm.trim());
       if (statusFilter !== 'ALL') params.append('status', statusFilter);
 
-      const res = await fetch(`/api/v1/purchase-orders?${params.toString()}`);
+      const res = await apiFetch(`/api/v1/purchase-orders?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
         setPos(data);
@@ -37,7 +38,7 @@ export default function PurchaseOrdersView({ onSelectPo, onSelectVendor, onSelec
   const fetchPoDetail = async (id) => {
     setDetailLoading(true);
     try {
-      const res = await fetch(`/api/v1/purchase-orders/${id}`);
+      const res = await apiFetch(`/api/v1/purchase-orders/${id}`);
       if (res.ok) {
         const data = await res.json();
         setPoDetail(data);

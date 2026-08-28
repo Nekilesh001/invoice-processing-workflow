@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Bot, Sparkles, Send, CheckCircle2, Database, AlertCircle, HelpCircle, Trash2, Clock } from 'lucide-react';
+import { apiFetch } from '../api';
 
 export default function DataAnalystWidget() {
   const [question, setQuestion] = useState('');
@@ -17,10 +18,7 @@ export default function DataAnalystWidget() {
   // Load chat history from backend database and localStorage fallback
   const fetchHistory = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch('/api/v1/analytics/history', {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      });
+      const res = await apiFetch('/api/v1/analytics/history');
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
@@ -56,12 +54,10 @@ export default function DataAnalystWidget() {
     setError('');
 
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch('/api/v1/analytics/ask', {
+      const res = await apiFetch('/api/v1/analytics/ask', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ question: q.trim() })
       });
@@ -93,10 +89,8 @@ export default function DataAnalystWidget() {
 
   const handleClearHistory = async () => {
     try {
-      const token = localStorage.getItem('token');
-      await fetch('/api/v1/analytics/history', {
-        method: 'DELETE',
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      await apiFetch('/api/v1/analytics/history', {
+        method: 'DELETE'
       });
     } catch (e) {
       console.warn('Backend history clear failed', e);

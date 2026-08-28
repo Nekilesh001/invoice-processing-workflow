@@ -62,12 +62,13 @@ class ProcurementAgent:
         vendor_res = lookup_vendor(vendor_name, session=db_session)
         tool_results.append({"tool": "lookup_vendor", "args": {"vendor_name": vendor_name}, "output": vendor_res})
 
-        if vendor_res.get("found") and vendor_res.get("status") == "VERIFIED":
+        if vendor_res.get("found") and vendor_res.get("status") == "VERIFIED" and vendor_res.get("match_type") == "EXACT":
             vendor_verified = True
             evidence.append({"type": "vendor_verification", "details": vendor_res})
         else:
             vendor_verified = False
-            issues.append("UNKNOWN_VENDOR")
+            issue_reason = "FUZZY_VENDOR_MATCH" if vendor_res.get("match_type") == "FUZZY_SUBSTRING" else "UNKNOWN_VENDOR"
+            issues.append(issue_reason)
             status = "REVIEW"
             recommended_action = "HUMAN_REVIEW"
             evidence.append({"type": "vendor_verification_failure", "details": vendor_res})

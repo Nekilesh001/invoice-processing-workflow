@@ -64,9 +64,9 @@ class InvoiceOrchestrator:
             )
             state.procurement_assessment = proc_assessment
             state.agent_traces.append(proc_trace)
-            if on_tool_callback and proc_trace.tools_used:
-                for tool in proc_trace.tools_used:
-                    on_tool_callback(tool, {}, {"status": proc_assessment.status})
+            if on_tool_callback and proc_trace.tool_results:
+                for t in proc_trace.tool_results:
+                    on_tool_callback(t.get("tool"), t.get("args", {}), t.get("output", {}))
         except Exception as e:
             logger.error(f"ProcurementAgent execution failed: {e}")
             state.errors.append(f"ProcurementAgent error: {str(e)}")
@@ -80,9 +80,9 @@ class InvoiceOrchestrator:
             )
             state.risk_assessment = risk_assessment
             state.agent_traces.append(risk_trace)
-            if on_tool_callback and risk_trace.tools_used:
-                for tool in risk_trace.tools_used:
-                    on_tool_callback(tool, {}, {"risk_level": risk_assessment.risk_level})
+            if on_tool_callback and risk_trace.tool_results:
+                for t in risk_trace.tool_results:
+                    on_tool_callback(t.get("tool"), t.get("args", {}), t.get("output", {}))
         except Exception as e:
             logger.error(f"FinancialRiskAgent execution failed: {e}")
             state.errors.append(f"FinancialRiskAgent error: {str(e)}")

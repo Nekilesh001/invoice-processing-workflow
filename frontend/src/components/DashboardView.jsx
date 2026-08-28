@@ -4,6 +4,7 @@ import {
   DollarSign, TrendingUp, AlertTriangle, ArrowRight, Upload, Clock, UserCheck, Layers, ChevronRight
 } from 'lucide-react';
 import DataAnalystWidget from './DataAnalystWidget';
+import { apiFetch } from '../api';
 
 export default function DashboardView({ onSelectInvoice, onNavigateUpload }) {
   const [summary, setSummary] = useState(null);
@@ -14,7 +15,7 @@ export default function DashboardView({ onSelectInvoice, onNavigateUpload }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/v1/dashboard/summary');
+      const res = await apiFetch('/api/v1/dashboard/summary');
       if (!res.ok) {
         throw new Error('Failed to load dashboard metrics');
       }

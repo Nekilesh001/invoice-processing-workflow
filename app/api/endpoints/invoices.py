@@ -167,7 +167,9 @@ def process_invoice_upload_stream(
                 session=db,
                 extracted_invoice=extracted_invoice,
                 validation_result=val_res,
-                source_filename=file_name
+                source_filename=file_name,
+                procurement_assessment=agent_decision.procurement_assessment,
+                risk_assessment=agent_decision.risk_assessment
             )
 
             status_enum = ProcessingStatus.SUCCESS if agent_decision.action == "AUTO_PROCESS" else ProcessingStatus.NEEDS_REVIEW
@@ -179,6 +181,8 @@ def process_invoice_upload_stream(
                 "extracted_invoice": json.loads(extracted_invoice.model_dump_json()),
                 "validation_result": val_json,
                 "agent_decision": agent_dec_json,
+                "procurement_assessment": agent_decision.procurement_assessment,
+                "risk_assessment": agent_decision.risk_assessment,
                 "database_invoice_id": db_invoice.id if db_invoice else None
             }
 
@@ -287,10 +291,16 @@ def get_invoice_detail(
         for act in inv.review_actions
     ]
 
+    procurement_assessment = json.loads(inv.procurement_assessment_json) if inv.procurement_assessment_json else None
+    risk_assessment = json.loads(inv.risk_assessment_json) if inv.risk_assessment_json else None
+
     return {
         "id": inv.id,
         "invoice_number": inv.invoice_number,
         "po_number": inv.po_number,
+        "procurement_assessment": procurement_assessment,
+        "procurement_status": procurement_assessment.get("status") if procurement_assessment else "UNKNOWN",
+        "risk_assessment": risk_assessment,
         "invoice_date": str(inv.invoice_date) if inv.invoice_date else None,
         "due_date": str(inv.due_date) if inv.due_date else None,
         "currency": inv.currency,

@@ -81,7 +81,9 @@ class InvoicePipelineRunner:
                     session=session,
                     extracted_invoice=extracted_invoice,
                     validation_result=validation_result,
-                    source_filename=resolved_filename
+                    source_filename=resolved_filename,
+                    procurement_assessment=agent_decision.procurement_assessment,
+                    risk_assessment=agent_decision.risk_assessment
                 )
 
                 # Update invoice status based on agent decision
@@ -97,7 +99,9 @@ class InvoicePipelineRunner:
                     extracted_invoice=extracted_invoice,
                     validation_result=validation_result,
                     database_invoice_id=db_invoice.id,
-                    review_task_id=review_id
+                    review_task_id=review_id,
+                    procurement_assessment=agent_decision.procurement_assessment,
+                    risk_assessment=agent_decision.risk_assessment
                 )
 
             if db_session:
