@@ -80,3 +80,25 @@ def init_db(engine=None):
     import app.database.models  # Ensures all ORM models are registered with Base metadata
     eng = engine or get_engine()
     Base.metadata.create_all(bind=eng)
+    _run_lightweight_migrations(eng)
+
+
+def _run_lightweight_migrations(eng):
+    """
+    Best-effort, idempotent ALTER TABLE for columns added after initial deployment.
+    create_all() only creates missing tables, not missing columns on existing tables,
+    so pre-existing MySQL databases need this to pick up new columns without a full
+    migration framework. Safe no-op if the column already exists.
+    """
+    statements = [
+        "ALTER TABLE invoices ADD COLUMN procurement_assessment_json TEXT",
+        "ALTER TABLE invoices ADD COLUMN risk_assessment_json TEXT",
+    ]
+    with eng.connect() as conn:
+        for stmt in statements:
+            try:
+                conn.execute(text(stmt))
+                conn.commit()
+            except Exception:
+                # Column already exists (or dialect doesn't need this, e.g. fresh create_all) - ignore.
+                conn.rollback()

@@ -50,6 +50,8 @@ def list_review_tasks(
         raw_json_data = {
             "invoice_number": inv.invoice_number if inv else None,
             "po_number": inv.po_number if inv else None,
+            "invoice_date": str(inv.invoice_date) if (inv and inv.invoice_date) else None,
+            "due_date": str(inv.due_date) if (inv and inv.due_date) else None,
             "vendor_name": inv.vendor.name if (inv and inv.vendor) else None,
             "customer_name": inv.customer.name if (inv and inv.customer) else None,
             "total_amount": float(inv.total_amount) if (inv and inv.total_amount is not None) else 0.0,
@@ -64,6 +66,8 @@ def list_review_tasks(
             "status": t.status,
             "created_at": t.created_at.isoformat() if t.created_at else None,
             "invoice_number": inv.invoice_number if inv else None,
+            "invoice_date": str(inv.invoice_date) if (inv and inv.invoice_date) else None,
+            "due_date": str(inv.due_date) if (inv and inv.due_date) else None,
             "vendor_name": inv.vendor.name if (inv and inv.vendor) else "Unknown",
             "total_amount": float(inv.total_amount) if (inv and inv.total_amount is not None) else 0.0,
             "po_number": inv.po_number if inv else None,

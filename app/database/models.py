@@ -90,6 +90,11 @@ class InvoiceModel(Base):
     status = Column(String(50), default="PENDING", nullable=False, index=True)  # PENDING, APPROVED, REJECTED, NEEDS_REVIEW
     file_hash = Column(String(64), nullable=True, index=True)
     source_filename = Column(String(255), nullable=True)
+
+    # Persisted multi-agent assessment snapshots (JSON strings), captured at processing time
+    # so the UI can display real agent output instead of guessing from partial fields.
+    procurement_assessment_json = Column(Text, nullable=True)
+    risk_assessment_json = Column(Text, nullable=True)
     
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)

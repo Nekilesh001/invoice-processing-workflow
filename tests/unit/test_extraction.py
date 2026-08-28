@@ -49,3 +49,31 @@ def test_nonexistent_file_handling():
     
     with pytest.raises(FileNotFoundError):
         extractor.extract(fake_path)
+
+
+def test_image_bytes_extraction():
+    import io
+    from PIL import Image
+    
+    extractor = DocumentExtractor()
+    img = Image.new("RGB", (200, 100), color="white")
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    png_bytes = buf.getvalue()
+    
+    result = extractor.extract(png_bytes, file_name="invoice_sample.png")
+    assert isinstance(result, ExtractionResult)
+    assert result.extraction_method == "ocr"
+    assert result.ocr_applied is True
+    assert result.page_count == 1
+    assert result.file_name == "invoice_sample.png"
+
+
+def test_unsupported_file_handling():
+    extractor = DocumentExtractor()
+    garbage_bytes = b"NOT_A_REAL_FILE_FORMAT_CONTENT_12345"
+    
+    with pytest.raises(ValueError) as exc_info:
+        extractor.extract(garbage_bytes, file_name="corrupted_file.xyz")
+    assert "Unsupported file type" in str(exc_info.value)
+

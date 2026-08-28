@@ -10,12 +10,15 @@ from app.database.repositories.purchase_order_repository import PurchaseOrderRep
 def lookup_vendor(vendor_name: Optional[str], session: Optional[Session] = None) -> Dict[str, Any]:
     """
     Agent tool: Looks up vendor details in master database registry.
-    Safe behavior: Unknown vendors return UNKNOWN_VENDOR status and are NOT automatically verified.
+    Performs exact case-insensitive match first. Fallback to substring match returns FUZZY_SUBSTRING match_type
+    and requires human review (is_approved=False, found=False).
+    Safe behavior: Unknown/Fuzzy vendors return non-VERIFIED status and are NOT automatically verified.
     """
     if not vendor_name or not vendor_name.strip():
         return {
             "found": False,
             "status": "MISSING_VENDOR",
+            "match_type": "NONE",
             "is_approved": False,
             "message": "Vendor name was not provided."
         }
@@ -24,21 +27,38 @@ def lookup_vendor(vendor_name: Optional[str], session: Optional[Session] = None)
 
     if session:
         try:
-            vendor = session.query(VendorModel).filter(VendorModel.name.ilike(f"%{clean_name}%")).first()
-            if vendor:
+            # 1. Attempt exact case-insensitive match first
+            exact_vendor = session.query(VendorModel).filter(VendorModel.name.ilike(clean_name)).first()
+            if exact_vendor:
                 return {
                     "found": True,
                     "status": "VERIFIED",
-                    "vendor_id": vendor.id,
-                    "vendor_name": vendor.name,
-                    "tax_id": vendor.tax_id,
+                    "match_type": "EXACT",
+                    "vendor_id": exact_vendor.id,
+                    "vendor_name": exact_vendor.name,
+                    "tax_id": exact_vendor.tax_id,
                     "is_approved": True,
-                    "message": f"Vendor '{vendor.name}' verified in database."
+                    "message": f"Vendor '{exact_vendor.name}' verified in database via exact match."
+                }
+
+            # 2. Fallback to substring match as lower-confidence signal
+            fuzzy_vendor = session.query(VendorModel).filter(VendorModel.name.ilike(f"%{clean_name}%")).first()
+            if fuzzy_vendor:
+                return {
+                    "found": False,
+                    "status": "FUZZY_MATCH",
+                    "match_type": "FUZZY_SUBSTRING",
+                    "vendor_id": fuzzy_vendor.id,
+                    "vendor_name": fuzzy_vendor.name,
+                    "tax_id": fuzzy_vendor.tax_id,
+                    "is_approved": False,
+                    "message": f"Partial vendor match '{fuzzy_vendor.name}' found for query '{clean_name}'. Requires human verification."
                 }
         except Exception as e:
             return {
                 "found": False,
                 "status": "DATABASE_ERROR",
+                "match_type": "NONE",
                 "is_approved": False,
                 "vendor_name": clean_name,
                 "message": f"Database error during vendor lookup: {str(e)}"
@@ -48,6 +68,7 @@ def lookup_vendor(vendor_name: Optional[str], session: Optional[Session] = None)
     return {
         "found": False,
         "status": "UNKNOWN_VENDOR",
+        "match_type": "NONE",
         "vendor_name": clean_name,
         "is_approved": False,
         "message": f"Vendor '{clean_name}' was not found in master vendor registry."

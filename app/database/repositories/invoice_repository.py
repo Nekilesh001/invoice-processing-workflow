@@ -74,7 +74,9 @@ class InvoiceRepository:
         session: Session,
         extracted_invoice: ExtractedInvoice,
         validation_result: Optional[ValidationResult] = None,
-        source_filename: Optional[str] = None
+        source_filename: Optional[str] = None,
+        procurement_assessment: Optional[dict] = None,
+        risk_assessment: Optional[dict] = None
     ) -> InvoiceModel:
         """
         Persists ExtractedInvoice model to database within active transaction.
@@ -115,6 +117,10 @@ class InvoiceRepository:
             ).first()
             if existing:
                 existing.status = "NEEDS_REVIEW"
+                if procurement_assessment is not None:
+                    existing.procurement_assessment_json = json.dumps(procurement_assessment)
+                if risk_assessment is not None:
+                    existing.risk_assessment_json = json.dumps(risk_assessment)
                 review_task = session.query(ReviewTaskModel).filter(
                     ReviewTaskModel.invoice_id == existing.id,
                     ReviewTaskModel.status == "PENDING"
@@ -145,7 +151,9 @@ class InvoiceRepository:
             amount_paid=extracted_invoice.amount_paid,
             amount_due=extracted_invoice.amount_due,
             status=status,
-            source_filename=source_filename
+            source_filename=source_filename,
+            procurement_assessment_json=json.dumps(procurement_assessment) if procurement_assessment is not None else None,
+            risk_assessment_json=json.dumps(risk_assessment) if risk_assessment is not None else None
         )
         session.add(invoice_rec)
         try:
